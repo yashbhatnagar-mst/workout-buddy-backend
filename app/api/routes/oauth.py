@@ -52,5 +52,5 @@ async def google_auth_callback(request: Request):
     jwt_token = create_jwt_token({"sub": email})
 
     # Redirect to frontend with token and user_id in query params
-    redirect_url = f"http://localhost:8001/auth/callback?token={jwt_token}&user_id={user_id}"
+    redirect_url = f"http://localhost:8001/user/login/callback?token={jwt_token}&user_id={user_id}"
     return RedirectResponse(url=redirect_url)
