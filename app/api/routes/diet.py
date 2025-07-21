@@ -4,7 +4,7 @@ from app.schemas.diet_plan_schema import DietPlanResponse, ErrorResponse
 from app.utils.gemini import generate_gemini_response
 from app.db.mongodb import db
 from bson import ObjectId
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta , timezone
 import re
 import json
 
@@ -22,7 +22,7 @@ def extract_json_from_text(text: str):
 from datetime import datetime, timedelta
 
 def get_next_seven_days_dates():
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     return [(today + timedelta(days=i)).isoformat() for i in range(7)]
 
 
@@ -128,7 +128,7 @@ Output must strictly be JSON for all 7 days.
         "week_start_date": week_dates[0],
         "week_end_date": week_dates[-1],
         "ai_generated_plan": dated_plan,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     })
 
     return {
