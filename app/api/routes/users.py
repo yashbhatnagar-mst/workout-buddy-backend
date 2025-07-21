@@ -60,7 +60,7 @@ async def get_user_profile(user_id: str):
         data=profile
     )
 
-@router.put("/user/{user_id}/profile")
+@router.patch("/user/{user_id}/profile")
 async def update_user_profile(user_id: str, payload: UserProfileUpdate):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")

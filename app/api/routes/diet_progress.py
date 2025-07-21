@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.schemas.diet_progress_schema import WeeklyProgressResponse, MonthlyProgressResponse, DailyProgress
 from app.db.mongodb import db
 from bson import ObjectId
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta , timezone
 from typing import List
 
 
@@ -24,7 +24,7 @@ def estimate_calories(meal: str):
 
 @router.get("/diet/daily", response_model=List[DailyProgress])
 async def get_daily_diet_progress(user_id: str):
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     past_seven = today - timedelta(days=7)
 
     plans = db["diet_plans"].find({"user_id": ObjectId(user_id)})

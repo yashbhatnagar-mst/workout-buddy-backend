@@ -7,6 +7,7 @@ from app.db.mongodb import db
 from app.core.auth import create_jwt_token
 from app.models.user import User
 
+
 load_dotenv()
 router = APIRouter()
 

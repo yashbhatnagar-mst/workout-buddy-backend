@@ -8,6 +8,7 @@ from app.core.security import hash_password, verify_password
 from app.core.auth import create_jwt_token
 from app.utils.api_response import api_response
 from app.utils.gemini import generate_gemini_response
+from app.api.routes.api_key import get_api_key
 
 router = APIRouter()
 users_collection = db["users"]
@@ -39,6 +40,8 @@ async def register_user(payload: UserCreate):
 @router.post("/login")
 async def login_user(payload: LoginRequest):
     user = await users_collection.find_one({"email": payload.email})
+    api_key = await get_api_key()
+    print(f"Using API Key: {api_key["data"]["apiKey"]}")
     if not user or not verify_password(payload.password, user["password_hash"]):
         return api_response(
             message="Invalid email or password",
