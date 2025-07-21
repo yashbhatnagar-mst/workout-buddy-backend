@@ -6,11 +6,10 @@ from bson import ObjectId
 router = APIRouter(prefix="/api/progress", tags=["Meal Log"])
 
 
-@router.post("/log-meal", response_model=MealLogResponse)
-async def log_meal(data: MealLogRequest):
-    # Save the meal log into MongoDB
+@router.post("/log-meal/{user_id}", response_model=MealLogResponse)
+async def log_meal(user_id: str, data: MealLogRequest):
     await db["meal_logs"].insert_one({
-        "user_id": ObjectId(data.user_id),
+        "user_id": ObjectId(user_id),
         "date": data.date,
         "meals": {
             "breakfast": data.breakfast,
