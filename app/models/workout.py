@@ -17,7 +17,11 @@ class WorkoutDietPlan(BaseModel):
     medical_conditions: List[str]
     injuries_or_limitations: List[str]
     plan: List[WorkoutPlanDay] = Field(..., description="The generated 7-day workout plan")
-    created_at: datetime = Field(default_factory=datetime.now(timezone.utc), description="Timestamp of plan creation")
+    created_at: datetime = Field(
+    default_factory=lambda: datetime.now(timezone.utc),
+    description="Timestamp of plan creation"
+)
+
 
     class Config:
         validate_by_name = True
