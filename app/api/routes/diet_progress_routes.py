@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query , Depends
+from app.core.auth import get_current_user_id
 from app.schemas.api_response_schema import APIResponse
 from app.schemas.diet_progress_schema import DailyProgress, WeeklyProgressResponse, MonthlyProgressResponse
 from app.db.mongodb import db
@@ -17,7 +18,7 @@ def extract_meal_data(meals):
 
 
 @router.get("/diet/daily", response_model=APIResponse[List[DailyProgress]])
-async def get_daily_progress(user_id: str, date: str = Query(..., description="YYYY-MM-DD")):
+async def get_daily_progress(user_id: str = Depends(get_current_user_id), date: str = Query(..., description="YYYY-MM-DD")):
     try:
         datetime.fromisoformat(date)
     except ValueError:
@@ -47,7 +48,7 @@ async def get_daily_progress(user_id: str, date: str = Query(..., description="Y
 
 
 @router.get("/diet/weekly", response_model=APIResponse[List[WeeklyProgressResponse]])
-async def get_weekly_progress(user_id: str, start_date: str, end_date: str):
+async def get_weekly_progress( start_date: str, end_date: str , user_id: str = Depends(get_current_user_id)):
     try:
         start = datetime.fromisoformat(start_date).date()
         end = datetime.fromisoformat(end_date).date()
@@ -107,7 +108,7 @@ async def get_weekly_progress(user_id: str, start_date: str, end_date: str):
 
 
 @router.get("/diet/monthly", response_model=APIResponse[List[MonthlyProgressResponse]])
-async def get_monthly_progress(user_id: str, start_date: str, end_date: str):
+async def get_monthly_progress(start_date: str, end_date: str , user_id: str = Depends(get_current_user_id)):
     try:
         start = datetime.fromisoformat(start_date).date()
         end = datetime.fromisoformat(end_date).date()

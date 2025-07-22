@@ -1,4 +1,6 @@
 from fastapi import APIRouter
+from fastapi import Depends
+from app.core.auth import get_current_user_id
 from app.schemas.meal_log_schema import MealLogRequest
 from app.db.mongodb import db
 from bson import ObjectId
@@ -10,7 +12,7 @@ router = APIRouter(prefix="/api/progress", tags=["Meal Log"])
 
 
 @router.post("/log-meal/{user_id}")
-async def log_meal(user_id: str, data: MealLogRequest):
+async def log_meal( data: MealLogRequest , user_id: str = Depends(get_current_user_id)):
     # Validate date
     try:
         datetime.fromisoformat(data.date)
