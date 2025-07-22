@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.ai_diet_plan_request import WorkoutPlanRequest
+from app.schemas.diet_plan import DietFormRequest, DietPlanListResponse, DietPlanResponse
 from app.db.mongodb import db
 from app.utils.gemini import generate_gemini_response
 from datetime import datetime, timedelta
@@ -7,10 +7,9 @@ from bson import ObjectId
 import re
 import json
 
-router = APIRouter(prefix="/ai", tags=["AI Diet"])
+router = APIRouter(prefix="/diet", tags=["AI Diet"])
 
 
-# Utility: Extract JSON from AI response text
 def extract_json_from_text(text: str):
     clean_text = re.sub(r"```json\s*|```", "", text).strip()
     json_match = re.search(r"\{.*\}", clean_text, re.DOTALL)
@@ -19,13 +18,11 @@ def extract_json_from_text(text: str):
     raise ValueError("No valid JSON found in response")
 
 
-# Utility: Get dates for next 7 days
 def get_next_seven_days_dates():
     today = datetime.utcnow().date()
     return [(today + timedelta(days=i)).isoformat() for i in range(7)]
 
 
-# ✅ Reusable API Response
 def api_response(message: str, status: int, data=None):
     return {
         "message": message,
@@ -35,9 +32,9 @@ def api_response(message: str, status: int, data=None):
     }
 
 
-# ---------- POST: AI Diet Plan ---------- #
 @router.post("/generate-diet-plan/{user_id}")
-async def generate_ai_diet_plan(user_id: str, request: WorkoutPlanRequest):
+async def generate_diet_plan(user_id: str, request: DietFormRequest):
+    print(f"hiiiiiiii")
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user_id")
 
@@ -85,12 +82,13 @@ Each day must include **breakfast, lunch, and dinner.**
 }}
 
 User Profile:
-- Diet preference: {request.veg_or_non_veg}
+- Diet preference: {request.diet_type}
 - Activity Level: {request.activity_level}
 - Fitness Goal: {request.fitness_goal}
 - Experience Level: {request.experience_level}
 - Medical Conditions: {request.medical_conditions}
 - Allergies: {request.allergies}
+- Other Allergy: {request.other_allergy}
 - Preferred Workout Style: {request.preferred_workout_style}
 - Preferred Training Days per Week: {request.preferred_training_days_per_week}
 
@@ -138,7 +136,6 @@ Output must strictly be JSON for all 7 days.
     )
 
 
-# ---------- GET: Retrieve Saved Diet Plan ---------- #
 @router.get("/diet-plan/{plan_id}")
 async def get_saved_diet_plan(plan_id: str):
     if not ObjectId.is_valid(plan_id):
