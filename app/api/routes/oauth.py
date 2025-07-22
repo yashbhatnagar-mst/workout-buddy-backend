@@ -28,7 +28,6 @@ async def login_via_google(request: Request):
 
 @router.get("/google/callback", name="google_auth_callback")
 async def google_auth_callback(request: Request):
-    # Exchange code for access token
     token = await oauth.google.authorize_access_token(request)
     user_info = await oauth.google.userinfo(token=token)
 
@@ -38,7 +37,6 @@ async def google_auth_callback(request: Request):
     # Check if user exists
     user = await users_collection.find_one({"email": email})
     if not user:
-        # Create new user if not found
         new_user = User(
             email=email,
             password_hash="",  # No password for OAuth users
@@ -49,9 +47,8 @@ async def google_auth_callback(request: Request):
     else:
         user_id = str(user["_id"])
 
-    # Generate JWT token
-    jwt_token = create_jwt_token({"sub": email})
+    # ✅ FIXED: Create JWT using expected parameters
+    jwt_token = create_jwt_token(user_id=user_id, email=email)
 
-    # Redirect to frontend with token and user_id in query params
     redirect_url = f"http://localhost:8001/user/login/callback?token={jwt_token}&user_id={user_id}"
     return RedirectResponse(url=redirect_url)

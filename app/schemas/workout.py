@@ -21,8 +21,7 @@ class WorkoutDietPlanRequest(BaseModel):
     weight_kg: float = Field(..., gt=0, description="User's weight in kilograms")
     activity_level: str = Field(..., description="User's activity level (e.g., 'Sedentary', 'Moderately Active')")
     goal: str = Field(..., description="User's fitness goal (e.g., 'Weight Loss', 'Muscle Gain')")
-    workout_days_per_week: int = Field(..., ge=0, le=7, description="Number of days per week the user wants to workout")
-    workout_duration: str = Field(..., description="Desired workout duration (e.g., '1 hour', '30 minutes')")
+    workout_days_per_week: Optional[int] = Field(3, ge=0, le=7, description="Days per week the user wants to workout")
+    workout_duration: Optional[str] = Field("30 minutes", description="Desired workout duration")
     medical_conditions: List[str] = Field(default_factory=list, description="Any medical conditions")
     injuries_or_limitations: List[str] = Field(default_factory=list, description="Any injuries or limitations")
-
