@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException , Depends
+from app.core.auth import get_current_user_id
 from app.schemas.diet_plan import DietFormRequest, DietPlanListResponse, DietPlanResponse
 from app.db.mongodb import db
 from app.utils.gemini import generate_gemini_response
@@ -34,7 +35,7 @@ def api_response(message: str, status: int, data=None):
 
 
 @router.post("/generate-diet-plan/{user_id}")
-async def generate_diet_plan(user_id: str, request: DietFormRequest):
+async def generate_diet_plan(request: DietFormRequest , user_id: str = Depends(get_current_user_id) ):
     print(f"hiiiiiiii")
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user_id")
