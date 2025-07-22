@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 import re
 import json
-
+from datetime import timezone
 
 router = APIRouter(prefix="/diet", tags=["AI Diet"])
 
