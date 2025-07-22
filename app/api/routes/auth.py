@@ -42,7 +42,7 @@ async def register_user(payload: UserCreate):
 async def login_user(payload: OAuth2PasswordRequestForm = Depends()):
     user = await users_collection.find_one({"email": payload.username})
     api_key = await get_api_key()
-    print(f"Using API Key: {api_key["data"]["apiKey"]}")
+    # print(f"Using API Key: {api_key["data"]["apiKey"]}")
     if not user or not verify_password(payload.password, user["password_hash"]):
         return api_response(
             message="Invalid email or password",
