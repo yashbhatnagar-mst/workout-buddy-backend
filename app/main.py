@@ -8,19 +8,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Local imports
-from app.api.api_v1 import api_router
 from app.config.settings import settings
 from app.db.mongodb import db
-from app.api.routes import diet, oauth
-from app.api.routes.diet_progress import router as diet_progress_router
-from app.api.routes.meal_log import router as meal_log_router
-from app.api.routes.api_key import router as api_key_router
 from app.utils.gemini import configure_gemini_model
+from app.api.api_v1 import api_router
+from app.api.routes import diet, oauth
+from app.api.routes.diet_progress_routes import router as diet_progress_router
+from app.api.routes.meal_log_routes import router as meal_log_router
+from app.api.routes.api_key import router as api_key_router
 
-# Initialize FastAPI app
+# FastAPI instance
 app = FastAPI(title=settings.APP_NAME)
 
-# Middleware: CORS
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
@@ -29,37 +29,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Middleware: Session
+# Session Middleware
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY", "super-secret-key-change-this")
 )
 
-# Include routers
+# Routes
 app.include_router(diet.router)
 app.include_router(api_router, prefix="/api")
 app.include_router(oauth.router, prefix="/auth", tags=["OAuth"])
-app.include_router(diet_progress_router)
-app.include_router(meal_log_router)
+app.include_router(diet_progress_router, prefix="/api/progress", tags=["Diet Progress"])
+app.include_router(meal_log_router, prefix="/api/progress", tags=["Meal Log"])
 app.include_router(api_key_router, prefix="/api-keys", tags=["API Keys"])
 
-# Combined startup event
+
+# Startup event: DB + Gemini AI
 @app.on_event("startup")
 async def on_startup():
-    """
-    Handles actions to perform on app startup:
-    - Configures Gemini model
-    - Tests MongoDB connection
-    """
     await configure_gemini_model()
-
     try:
         await db.command("ping")
         print("✅ Connected to MongoDB Atlas")
     except Exception as e:
         print(f"❌ Failed to connect to MongoDB Atlas: {e}")
 
-# Root endpoint
+
+# Root Health Check
 @app.get("/")
 async def root():
     return {"message": "Welcome to Workout Buddy API!"}

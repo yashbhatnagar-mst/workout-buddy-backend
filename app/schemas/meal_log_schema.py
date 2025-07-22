@@ -1,10 +1,10 @@
-from pydantic import BaseModel , Field
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
 class MealLogRequest(BaseModel):
-    user_id: str  # MongoDB user id
-    date: str = Field(..., description="ISO Date: YYYY-MM-DD")
+    user_id: str
+    date: str = Field(..., description="YYYY-MM-DD")
     breakfast: Optional[str] = None
     lunch: Optional[str] = None
     dinner: Optional[str] = None
