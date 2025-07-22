@@ -7,6 +7,7 @@ from bson import ObjectId
 import re
 import json
 
+
 router = APIRouter(prefix="/diet", tags=["AI Diet"])
 
 
@@ -19,7 +20,7 @@ def extract_json_from_text(text: str):
 
 
 def get_next_seven_days_dates():
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     return [(today + timedelta(days=i)).isoformat() for i in range(7)]
 
 
@@ -123,7 +124,7 @@ Output must strictly be JSON for all 7 days.
         "week_start_date": week_dates[0],
         "week_end_date": week_dates[-1],
         "ai_generated_plan": dated_plan,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.now(timezone.utc)
     })
 
     return api_response(

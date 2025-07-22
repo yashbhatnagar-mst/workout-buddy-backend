@@ -42,5 +42,5 @@ class UserProfileOut(BaseModel):
     created_at: datetime = Field(..., description="Profile creation timestamp")
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         json_encoders = {ObjectId: str}
