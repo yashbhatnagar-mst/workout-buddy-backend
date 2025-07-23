@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import datetime, timezone
+from datetime import datetime, timezone ,date
 from typing import Optional
 from bson import ObjectId
 
@@ -14,22 +14,13 @@ class UserProfile(BaseModel):
     weight: float
     activity_level: str
     goal: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).date().isoformat())
 
     class Config:
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
         from_attributes = True
 
-
-# class UserProfileCreate(BaseModel):
-#     full_name: str
-#     age: int
-#     gender: str
-#     height: float
-#     weight: float
-#     activity_level: str
-#     goal: str
 
 
 class UserProfileUpdate(BaseModel):

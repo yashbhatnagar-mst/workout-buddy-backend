@@ -1,23 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
-from typing import List
 import json
 import re
-
+from app.core.auth import get_current_user_id
 from app.db.mongodb import db
 from app.utils.gemini import generate_gemini_response
 from app.utils.api_response import api_response
 from app.schemas.workout import WorkoutDietPlanRequest, WorkoutPlanDay
 from app.models.workout import WorkoutDietPlan
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user_id)])
 workout_collection = db["workout_plans"]
 
 # 🔧 Prompt builder
 def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
     return (
-        f"You're a professional fitness trainer. Generate a detailed 7-day personalized workout plan in strict JSON format "
-        f"for a user with the following attributes:\n"
+        f"You are a professional fitness trainer. Generate a detailed 7-day personalized workout plan in valid JSON format "
+        f"for a user with the following profile:\n"
         f"- Age: {data.age}\n"
         f"- Gender: {data.gender}\n"
         f"- Height: {data.height_cm} cm\n"
@@ -29,27 +28,31 @@ def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
         f"- Medical Conditions: {', '.join(data.medical_conditions) if data.medical_conditions else 'None'}\n"
         f"- Injuries or Limitations: {', '.join(data.injuries_or_limitations) if data.injuries_or_limitations else 'None'}\n\n"
 
-        f"Requirements for the JSON structure (DO NOT include this text in the JSON itself):\n"
-        f"- The top-level element must be a JSON array containing exactly 7 objects, one for each day (Monday to Sunday).\n"
-        f"- Each day object must have the following keys:\n"
-        f"  - 'day': A string representing the day of the week (e.g., 'Monday', 'Tuesday').\n"
-        f"  - 'focus': A string describing the primary focus for the day (e.g., 'Chest & Triceps', 'Cardio', 'Rest Day').\n"
-        f"  - 'exercises': An array of exercise objects. If it's a 'Rest Day', this array should be empty.\n"
-        f"- Each exercise object within the 'exercises' array must have the following keys:\n"
-        f"  - 'name': A string for the exercise name (e.g., 'Push-ups', 'Barbell Squats').\n"
-        f"  - 'sets': An integer for the number of sets.\n"
-        f"  - 'reps': A string for the number of repetitions (e.g., '10-12', '30 seconds', 'Max').\n"
-        f"  - 'equipment': A string describing the required equipment (e.g., 'Bodyweight', 'Dumbbells', 'Barbell', 'Treadmill').\n"
-        f"  - 'duration_per_set': An optional string for duration if applicable (e.g., '60 sec', '3 min'). Omit if not applicable.\n"
-        f"\n"
-        f"Generate the plan now. Ensure the output is ONLY the JSON array."
+        f"Output Instructions:\n"
+        f"- Output ONLY a valid JSON array (no markdown, no explanation, no comments).\n"
+        f"- The array must contain exactly 7 objects, one for each day of the week (Monday to Sunday).\n"
+        f"- Each object must contain:\n"
+        f"  - 'day': A string for the day name (e.g., 'Monday')\n"
+        f"  - 'focus': A string describing the workout focus (e.g., 'Chest & Triceps')\n"
+        f"  - 'exercises': A list of exercises (empty list if it's a rest day)\n"
+        f"- Each exercise must include:\n"
+        f"  - 'name': string (e.g., 'Push-ups')\n"
+        f"  - 'sets': integer (e.g., 3)\n"
+        f"  - 'reps': string (IMPORTANT: must be a string like '10-12', '30 seconds', or 'Max'. DO NOT use numbers.)\n"
+        f"  - 'equipment': string (e.g., 'Bodyweight', 'Dumbbells')\n"
+        f"  - 'duration_per_set': optional string (e.g., '60 sec', omit if not applicable)\n\n"
+
+        f"Strictly return ONLY the JSON array, with no markdown or extra text."
     )
 
 # 🚀 Create weekly workout plan
 @router.post("/workout/plan/week")
-async def create_weekly_workout_plan(user_id: str, payload: WorkoutDietPlanRequest):
+async def create_weekly_workout_plan(
+    payload: WorkoutDietPlanRequest,
+    user_id: str = Depends(get_current_user_id)
+):
     if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid user ID")
+        return api_response(message="Unauthorized: Invalid user ID", status=400)
 
     try:
         raw_response = await generate_gemini_response(build_workout_prompt(payload))
@@ -58,7 +61,7 @@ async def create_weekly_workout_plan(user_id: str, payload: WorkoutDietPlanReque
         try:
             plan_data = json.loads(cleaned_response)
         except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid plan format: {e}")
+            return api_response(message=f"Invalid plan format: {e}", status=400)
 
         validated_plan = [WorkoutPlanDay(**day) for day in plan_data]
 
@@ -77,7 +80,7 @@ async def create_weekly_workout_plan(user_id: str, payload: WorkoutDietPlanReque
             plan=validated_plan
         )
 
-        result = await workout_collection.insert_one(workout_plan_doc.dict(by_alias=True))
+        result = await workout_collection.insert_one(workout_plan_doc.model_dump(by_alias=True))
         inserted_id = str(result.inserted_id)
 
         return api_response(
@@ -87,18 +90,18 @@ async def create_weekly_workout_plan(user_id: str, payload: WorkoutDietPlanReque
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate or save workout plan: {e}")
+        return api_response(message=f"Failed to generate or save workout plan: {str(e)}", status=500)
 
 # 📥 Get single workout plan
 @router.get("/workout/plan/{plan_id}")
 async def get_workout_plan(plan_id: str):
     if not ObjectId.is_valid(plan_id):
-        raise HTTPException(status_code=400, detail="Invalid plan ID")
-    
+        return api_response(message="Invalid plan ID", status=400)
+
     workout_doc = await workout_collection.find_one({"_id": ObjectId(plan_id)})
     if not workout_doc:
-        raise HTTPException(status_code=404, detail="Workout plan not found")
-    
+        return api_response(message="Workout plan not found", status=404)
+
     workout_doc["_id"] = str(workout_doc["_id"])
     return api_response(
         message="Workout plan retrieved successfully",
@@ -106,20 +109,20 @@ async def get_workout_plan(plan_id: str):
         data=workout_doc
     )
 
-# 📋 Get all plans for a user
-@router.get("/workout/plans/user/{user_id}")
-async def get_user_workout_plans(user_id: str):
+# 📋 Get all workout plans for current user
+@router.get("/workout/plans/user")
+async def get_user_workout_plans(user_id: str = Depends(get_current_user_id)):
     if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid user ID")
+        return api_response(message="Unauthorized: Invalid user ID", status=400)
 
     plans_cursor = workout_collection.find({"user_id": user_id})
     user_plans = []
     async for plan_doc in plans_cursor:
         plan_doc["_id"] = str(plan_doc["_id"])
         user_plans.append(plan_doc)
-    
+
     if not user_plans:
-        raise HTTPException(status_code=404, detail="No workout plans found for this user.")
+        return api_response(message="No workout plans found for this user", status=404)
 
     return api_response(
         message="User workout plans retrieved successfully",
@@ -131,13 +134,10 @@ async def get_user_workout_plans(user_id: str):
 @router.delete("/workout/plan/{plan_id}")
 async def delete_workout_plan(plan_id: str):
     if not ObjectId.is_valid(plan_id):
-        raise HTTPException(status_code=400, detail="Invalid plan ID")
+        return api_response(message="Invalid plan ID", status=400)
 
     delete_result = await workout_collection.delete_one({"_id": ObjectId(plan_id)})
     if delete_result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Workout plan not found")
-    
-    return api_response(
-        message="Workout plan deleted successfully",
-        status=200
-    )
+        return api_response(message="Workout plan not found", status=404)
+
+    return api_response(message="Workout plan deleted successfully", status=200)

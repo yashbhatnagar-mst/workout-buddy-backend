@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, Body, status
+from app.core.auth import get_current_user_id
 from app.db.mongodb import db
 from app.utils.api_response import api_response
 from bson import ObjectId
@@ -10,20 +11,25 @@ router = APIRouter()
 users_collection = db["users"]
 profiles_collection = db["user_profiles"]
 
-@router.post("/user/{user_id}/profile")
-async def create_user_profile(user_id: str, payload: UserProfileCreate):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid user ID")
+def is_valid_object_id(user_id: str) -> bool:
+    return ObjectId.is_valid(user_id)
+
+@router.post("/user/profile")
+async def create_user_profile(
+    user_id: str = Depends(get_current_user_id),
+    payload: UserProfileCreate = Body(...)
+):
+    if not is_valid_object_id(user_id):
+        return api_response("Invalid user ID", status.HTTP_400_BAD_REQUEST)
 
     user = await users_collection.find_one({"_id": ObjectId(user_id)})
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        return api_response("User not found", status.HTTP_404_NOT_FOUND)
 
     existing_profile = await profiles_collection.find_one({"user_id": user_id})
     if existing_profile:
-        raise HTTPException(status_code=409, detail="User profile already exists")
+        return api_response("User profile already exists", status.HTTP_409_CONFLICT)
 
-    # 🔁 Build full profile object
     profile = UserProfile(
         user_id=user_id,
         full_name=payload.full_name,
@@ -33,25 +39,23 @@ async def create_user_profile(user_id: str, payload: UserProfileCreate):
         weight=payload.weight,
         activity_level=payload.activity_level,
         goal=payload.goal
-        # `email` is not in the model yet, but you could add it
     )
 
-    await profiles_collection.insert_one(profile.model_dump(by_alias=True))
-
+    result = await profiles_collection.insert_one(profile.model_dump(by_alias=True))
     return api_response(
         message="User profile created successfully",
         status=status.HTTP_201_CREATED,
-        data={"profile_id": str(profile.id)}
+        data={"profile_id": str(result.inserted_id)}
     )
 
-@router.get("/user/{user_id}/profile")
-async def get_user_profile(user_id: str):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid user ID")
+@router.get("/user/profile")
+async def get_user_profile(user_id: str = Depends(get_current_user_id)):
+    if not user_id or not is_valid_object_id(user_id):
+        return api_response("Invalid or missing user ID", status.HTTP_400_BAD_REQUEST)
 
     profile = await profiles_collection.find_one({"user_id": user_id})
     if not profile:
-        raise HTTPException(status_code=404, detail="User profile not found")
+        return api_response("User profile not found", status.HTTP_404_NOT_FOUND)
 
     profile["_id"] = str(profile["_id"])
     return api_response(
@@ -60,18 +64,25 @@ async def get_user_profile(user_id: str):
         data=profile
     )
 
-@router.put("/user/{user_id}/profile")
-async def update_user_profile(user_id: str, payload: UserProfileUpdate):
-    if not ObjectId.is_valid(user_id):
-        raise HTTPException(status_code=400, detail="Invalid user ID")
+@router.patch("/user/profile")
+async def update_user_profile(
+    user_id: str = Depends(get_current_user_id),
+    payload: UserProfileUpdate = Body(...)
+):
+    if not is_valid_object_id(user_id):
+        return api_response("Invalid user ID", status.HTTP_400_BAD_REQUEST)
 
     profile = await profiles_collection.find_one({"user_id": user_id})
     if not profile:
-        raise HTTPException(status_code=404, detail="User profile not found")
+        return api_response("User profile not found", status.HTTP_404_NOT_FOUND)
 
-    update_data = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    update_data = {
+        k: v for k, v in payload.model_dump(exclude_unset=True).items()
+        if v is not None
+    }
+
     if not update_data:
-        raise HTTPException(status_code=400, detail="No valid fields to update")
+        return api_response("No valid fields to update", status.HTTP_400_BAD_REQUEST)
 
     await profiles_collection.update_one(
         {"user_id": user_id},

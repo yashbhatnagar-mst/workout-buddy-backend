@@ -1,15 +1,15 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+
+class MealItem(BaseModel):
+    item_name: str
+    quantity: Optional[float] = None
+    weight_in_grams: Optional[float] = None
 
 
 class MealLogRequest(BaseModel):
-    user_id: str  # MongoDB user id
-    date: str     # ISO Date: "2025-07-18"
-    breakfast: Optional[str] = None
-    lunch: Optional[str] = None
-    dinner: Optional[str] = None
-
-
-class MealLogResponse(BaseModel):
-    message: str
-    logged_data: MealLogRequest
+    date: str = Field(..., description="YYYY-MM-DD")
+    breakfast: Optional[List[MealItem]] = None
+    lunch: Optional[List[MealItem]] = None
+    dinner: Optional[List[MealItem]] = None
