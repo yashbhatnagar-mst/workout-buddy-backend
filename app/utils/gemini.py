@@ -1,5 +1,4 @@
 # app/utils/gemini.py
-import os
 import google.generativeai as genai  # type: ignore
 from app.api.routes.api_key import get_api_key
 

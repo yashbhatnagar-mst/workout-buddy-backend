@@ -36,7 +36,6 @@ def api_response(message: str, status: int, data=None):
 
 @router.post("/generate-diet-plan/{user_id}")
 async def generate_diet_plan(request: DietFormRequest , user_id: str = Depends(get_current_user_id) ):
-    print(f"hiiiiiiii")
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user_id")
 

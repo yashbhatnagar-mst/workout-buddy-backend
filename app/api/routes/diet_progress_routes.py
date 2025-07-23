@@ -1,167 +1,69 @@
-from fastapi import APIRouter, Query , Depends
+# app/api/routes/ai_progress.py
+
+from fastapi import APIRouter, Depends, Query
 from app.core.auth import get_current_user_id
-from app.schemas.api_response_schema import APIResponse
-from app.schemas.diet_progress_schema import DailyProgress, WeeklyProgressResponse, MonthlyProgressResponse
-from app.db.mongodb import db
-from datetime import datetime
-from typing import List
 from app.utils.api_response import api_response
+from app.utils.gemini import generate_gemini_response
+from app.db.mongodb import db
 from bson import ObjectId
-
-router = APIRouter(tags=["Diet Progress"])
-
-
-def extract_meal_data(meals):
-    calories = sum(600 for meal in ["breakfast", "lunch", "dinner"] if meals.get(meal))
-    missed = sum(1 for meal in ["breakfast", "lunch", "dinner"] if not meals.get(meal))
-    return calories, 1800, round((calories / 1800) * 100, 2), missed
+from datetime import datetime
 
 
-@router.get("/diet/daily", response_model=APIResponse[List[DailyProgress]])
-async def get_daily_progress(user_id: str = Depends(get_current_user_id), date: str = Query(..., description="YYYY-MM-DD")):
+router = APIRouter(prefix="/api/progress/ai", tags=["AI Diet Progress"])
+
+
+@router.get("/generate")
+async def generate_ai_progress(
+    user_id: str = Depends(get_current_user_id),
+    start_date: str = Query(..., description="YYYY-MM-DD"),
+    end_date: str = Query(..., description="YYYY-MM-DD")
+):
     try:
-        datetime.fromisoformat(date)
-    except ValueError:
-        return api_response(message="Invalid date format.", status=400, success=False, data=None)
-
-    logs = db["meal_logs"].find({"user_id": ObjectId(user_id), "date": date})
-    daily_progress = []
-
-    async for log in logs:
-        calories, target, adherence, missed = extract_meal_data(log["meals"])
-        daily_progress.append({
-            "date": date,
-            "total_calories": calories,
-            "target_calories": target,
-            "adherence_percent": adherence,
-            "missed_meals_count": missed
-        })
-
-    if not daily_progress:
-        return api_response(message="No meal logs found for this date.", status=404, success=False, data=[])
-
-    return api_response(
-        message="Daily progress fetched successfully.",
-        status=200,
-        data=daily_progress
-    )
-
-
-@router.get("/diet/weekly", response_model=APIResponse[List[WeeklyProgressResponse]])
-async def get_weekly_progress( start_date: str, end_date: str , user_id: str = Depends(get_current_user_id)):
-    try:
-        start = datetime.fromisoformat(start_date).date()
-        end = datetime.fromisoformat(end_date).date()
+        start = datetime.fromisoformat(start_date)
+        end = datetime.fromisoformat(end_date)
         if start > end:
             raise ValueError
     except ValueError:
-        return api_response(message="Invalid date range.", status=400, success=False, data=None)
+        return api_response(message="Invalid date range.", status=400)
 
-    logs = db["meal_logs"].find({
+    logs_cursor = db["meal_logs"].find({
         "user_id": ObjectId(user_id),
         "date": {"$gte": start_date, "$lte": end_date}
     })
 
-    dates_seen = set()
-    daily_breakdown = []
-    total_calories = target_calories = adherence_sum = missed_meals = 0
-    days_count = 0
-
-    async for log in logs:
-        log_date = log["date"]
-        if log_date in dates_seen:
-            continue
-        dates_seen.add(log_date)
-
-        calories, target, adherence, missed = extract_meal_data(log["meals"])
-        daily_breakdown.append({
-            "date": log_date,
-            "total_calories": calories,
-            "target_calories": target,
-            "adherence_percent": adherence,
-            "missed_meals_count": missed
+    logs = []
+    async for log in logs_cursor:
+        logs.append({
+            "date": log["date"],
+            "breakfast": log["meals"].get("breakfast", []),
+            "lunch": log["meals"].get("lunch", []),
+            "dinner": log["meals"].get("dinner", [])
         })
-        total_calories += calories
-        target_calories += target
-        adherence_sum += adherence
-        missed_meals += missed
-        days_count += 1
 
-    if not daily_breakdown:
-        return api_response(message="No meal logs found in this range.", status=404, success=False, data=[])
+    if not logs:
+        return api_response(message="No meal logs found in this date range.", status=404)
 
-    avg_adherence = round(adherence_sum / days_count, 2) if days_count else 0
+    # Prepare a detailed prompt for Gemini
+    prompt = f"""You are a professional dietitian. Analyze this user's diet log between {start_date} and {end_date} and generate a progress report. Show calories estimation, missing meals analysis, and adherence insights.
+    
+Here is the data:
+{logs}
+
+Provide insights in bullet points with clarity for visualization in graphs or charts, including:
+- Total calories trends
+- Missed meals count per day
+- Days with best adherence
+- Overall feedback
+"""
+
+    ai_result = await generate_gemini_response(prompt)
 
     return api_response(
-        message="Weekly progress fetched successfully.",
+        message="AI-generated diet progress report.",
         status=200,
-        data=[{
+        data={
             "start_date": start_date,
             "end_date": end_date,
-            "total_calories": total_calories,
-            "target_calories": target_calories,
-            "average_adherence": avg_adherence,
-            "missed_meals": missed_meals,
-            "daily_breakdown": daily_breakdown
-        }]
-    )
-
-
-@router.get("/diet/monthly", response_model=APIResponse[List[MonthlyProgressResponse]])
-async def get_monthly_progress(start_date: str, end_date: str , user_id: str = Depends(get_current_user_id)):
-    try:
-        start = datetime.fromisoformat(start_date).date()
-        end = datetime.fromisoformat(end_date).date()
-        if start > end:
-            raise ValueError
-    except ValueError:
-        return api_response(message="Invalid date range.", status=400, success=False, data=None)
-
-    logs = db["meal_logs"].find({
-        "user_id": ObjectId(user_id),
-        "date": {"$gte": start_date, "$lte": end_date}
-    })
-
-    dates_seen = set()
-    daily_breakdown = []
-    total_calories = target_calories = adherence_sum = missed_meals = 0
-    days_count = 0
-
-    async for log in logs:
-        log_date = log["date"]
-        if log_date in dates_seen:
-            continue
-        dates_seen.add(log_date)
-
-        calories, target, adherence, missed = extract_meal_data(log["meals"])
-        daily_breakdown.append({
-            "date": log_date,
-            "total_calories": calories,
-            "target_calories": target,
-            "adherence_percent": adherence,
-            "missed_meals_count": missed
-        })
-        total_calories += calories
-        target_calories += target
-        adherence_sum += adherence
-        missed_meals += missed
-        days_count += 1
-
-    if not daily_breakdown:
-        return api_response(message="No meal logs found in this range.", status=404, success=False, data=[])
-
-    avg_adherence = round(adherence_sum / days_count, 2) if days_count else 0
-
-    return api_response(
-        message="Monthly progress fetched successfully.",
-        status=200,
-        data=[{
-            "start_date": start_date,
-            "end_date": end_date,
-            "total_calories": total_calories,
-            "target_calories": target_calories,
-            "average_adherence": avg_adherence,
-            "missed_meals": missed_meals,
-            "daily_breakdown": daily_breakdown
-        }]
+            "ai_generated_summary": ai_result
+        }
     )

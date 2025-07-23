@@ -14,7 +14,6 @@ class DietFormRequest(BaseModel):
     preferred_training_days_per_week: int
 
 
-
 class DietPlanResponse(BaseModel):
     day: str
     breakfast: str
