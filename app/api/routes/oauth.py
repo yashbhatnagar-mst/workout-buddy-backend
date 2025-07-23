@@ -1,22 +1,20 @@
 from fastapi import APIRouter, Request
 from starlette.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth
-import os
-from dotenv import load_dotenv
+from app.config.settings import settings
 from app.db.mongodb import db
 from app.core.auth import create_jwt_token
 from app.models.user import User
 
 
-load_dotenv()
 router = APIRouter()
 
 # Register Google OAuth provider
 oauth = OAuth()
 oauth.register(
     name='google',
-    client_id=os.getenv("GOOGLE_CLIENT_ID"),
-    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
 )
