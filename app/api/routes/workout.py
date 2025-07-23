@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
 import json
 import re
-
 from app.core.auth import get_current_user_id
 from app.db.mongodb import db
 from app.utils.gemini import generate_gemini_response
