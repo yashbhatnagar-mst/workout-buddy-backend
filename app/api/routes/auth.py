@@ -1,6 +1,6 @@
 
-from fastapi import APIRouter, status , Depends , Response
-from app.schemas.auth import LoginRequest
+from fastapi import APIRouter, status , Depends , Response 
+from fastapi.responses import JSONResponse
 from app.schemas.user import UserCreate
 from app.db.mongodb import db
 from app.models.user import User
@@ -42,18 +42,25 @@ async def register_user(payload: UserCreate):
 async def login_user(payload: OAuth2PasswordRequestForm = Depends()):
     user = await users_collection.find_one({"email": payload.username})
     api_key = await get_api_key()
-    # print(f"Using API Key: {api_key["data"]["apiKey"]}")
-    if not user or not verify_password(payload.password, user["password_hash"]):
-        return api_response(
-            message="Invalid email or password",
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    token = create_jwt_token(user_id=str(user["_id"]), email=user["email"])
+    
+    print(payload)
+    print(payload.password)
 
+    if not user:
+        print("user Not Found")
+
+    if not user or not verify_password(payload.password, user["password_hash"]):
+        return JSONResponse(
+        content={"message": "Invalid email or password"},
+        status_code=status.HTTP_401_UNAUTHORIZED
+    )
+    
+
+    token = create_jwt_token(user_id=str(user["_id"]), email=user["email"])
     return {
-    "access_token": token,
-    "token_type": "bearer"
-}
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 @router.post("/logout")
 async def logout_user(response: Response):
