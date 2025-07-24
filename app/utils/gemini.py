@@ -22,7 +22,7 @@ async def configure_gemini_model():
 
         # Configure Gemini
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(model_name="gemini-2.5-pro ")
+        model = genai.GenerativeModel(model_name="gemini-2.5-pro")
         print("✅ Gemini model configured successfully.")
         
     except Exception as e:
