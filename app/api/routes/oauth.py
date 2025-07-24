@@ -48,5 +48,5 @@ async def google_auth_callback(request: Request):
     # ✅ FIXED: Create JWT using expected parameters
     jwt_token = create_jwt_token(user_id=user_id, email=email)
 
-    redirect_url = f"http://localhost:8001/user/login/callback?token={jwt_token}&user_id={user_id}"
+    redirect_url = f"http://localhost:8001/login/callback?token={jwt_token}&user_id={user_id}"
     return RedirectResponse(url=redirect_url)
