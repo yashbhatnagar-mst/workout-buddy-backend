@@ -32,7 +32,7 @@ async def register_user(payload: UserCreate):
 
     insert_result = await users_collection.insert_one(user.model_dump(by_alias=True))
 
-    return api_response(
+    return JSONResponse(
         message="User registered successfully",
         status=status.HTTP_201_CREATED,
         data={"user_id": str(insert_result.inserted_id)}
