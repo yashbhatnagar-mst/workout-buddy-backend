@@ -13,9 +13,12 @@ from app.db.mongodb import db
 from app.utils.gemini import configure_gemini_model
 from app.api.api_v1 import api_router
 from app.api.routes import diet, oauth
-from app.api.routes.diet_progress_routes import router as diet_progress_router
+from app.api.routes.diet_progress_routes import router as diet_progress_router 
+from app.api.routes.delete_diet_plan_router import router as delete_diet_plan_router
 from app.api.routes.meal_log_routes import router as meal_log_router
 from app.api.routes.api_key import router as api_key_router
+from app.api.routes.delete_meal_log import router as delete_meal_log_router
+from app.api.routes.update_meal_log import router as update_meal_log_router
 
 # FastAPI instance
 app = FastAPI(title=settings.APP_NAME)
@@ -37,10 +40,13 @@ app.add_middleware(
 
 # Routes
 app.include_router(diet.router)
+app.include_router(delete_diet_plan_router)
+app.include_router(meal_log_router, prefix="/api/progress", tags=["Meal Log"])
+app.include_router(delete_meal_log_router)
+app.include_router(update_meal_log_router)
 app.include_router(api_router, prefix="/api")
 app.include_router(oauth.router, prefix="/auth", tags=["OAuth"])
 app.include_router(diet_progress_router, prefix="/api/progress", tags=["Diet Progress"])
-app.include_router(meal_log_router, prefix="/api/progress", tags=["Meal Log"])
 app.include_router(api_key_router, prefix="/api-keys", tags=["API Keys"])
 
 
