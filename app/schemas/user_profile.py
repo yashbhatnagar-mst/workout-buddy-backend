@@ -5,7 +5,6 @@ from bson import ObjectId
 
 
 class UserProfileCreate(BaseModel):
-    user_id: str = Field(..., description="Reference ID to the user")
     full_name: str = Field(..., description="Full name of the user")
     age: int = Field(..., description="Age of the user")
     gender: Literal["male", "female", "other"] = Field(..., description="Gender of the user")
