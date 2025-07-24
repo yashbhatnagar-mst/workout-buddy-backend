@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException , Depends
 from app.core.auth import get_current_user_id
-from app.schemas.diet_plan import DietFormRequest, DietPlanListResponse, DietPlanResponse
+from app.schemas.diet_plan import DietFormRequest
 from app.db.mongodb import db
 from app.utils.gemini import generate_gemini_response
 from datetime import datetime, timedelta
@@ -8,8 +8,9 @@ from bson import ObjectId
 import re
 import json
 from datetime import timezone
+from app.utils.api_response import api_response
 
-router = APIRouter(prefix="/diet", tags=["AI Diet"])
+router = APIRouter(prefix="/diet", tags=["Diet"])
 
 
 def extract_json_from_text(text: str):
@@ -34,7 +35,7 @@ def api_response(message: str, status: int, data=None):
     }
 
 
-@router.post("/generate-diet-plan/{user_id}")
+@router.post("/generate-diet-plan/")
 async def generate_diet_plan(request: DietFormRequest , user_id: str = Depends(get_current_user_id) ):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user_id")
@@ -48,37 +49,44 @@ Each day must include **breakfast, lunch, and dinner.**
     "monday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }},
     "tuesday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }},
     "wednesday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }},
     "thursday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }},
     "friday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }},
     "saturday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }},
     "sunday": {{
         "breakfast": "...",
         "lunch": "...",
-        "dinner": "..."
+        "dinner": "...",
+        "calories": "..."
     }}
 }}
 
