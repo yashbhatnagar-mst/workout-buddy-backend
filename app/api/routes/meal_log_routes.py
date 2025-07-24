@@ -9,7 +9,7 @@ from app.core.auth import get_current_user_id
 router = APIRouter(prefix="/meal-log", tags=["Meal Log"])
 
 
-@router.post("/log-meal")
+@router.post("/")
 async def log_meal(
     data: MealLogRequest,
     user_id: str = Depends(get_current_user_id)

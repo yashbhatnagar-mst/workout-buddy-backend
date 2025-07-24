@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from bson import ObjectId
 import json
 import re
@@ -6,16 +6,19 @@ from app.core.auth import get_current_user_id
 from app.db.mongodb import db
 from app.utils.gemini import generate_gemini_response
 from app.utils.api_response import api_response
-from app.schemas.workout import WorkoutDietPlanRequest, WorkoutPlanDay
+from app.schemas.workout import WorkoutDietPlanRequest, WorkoutPlanDay , WorkoutDayLogRequest
 from app.models.workout import WorkoutDietPlan
+from datetime import datetime, timezone , time , timedelta ,date
+
 
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
 workout_collection = db["workout_plans"]
+workout_log_collection = db["workout_completions"]
 
 # 🔧 Prompt builder
 def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
     return (
-        f"You are a professional fitness trainer. Generate a detailed 7-day personalized workout plan in valid JSON format "
+        f"You are a certified physiotherapist and fitness trainer specializing in injury recovery and adaptive workouts. Generate a safe, effective, and detailed 7-day personalized workout plan (prefer rest on Saturday and Sunday if days are less then 7) in valid JSON format "
         f"for a user with the following profile:\n"
         f"- Age: {data.age}\n"
         f"- Gender: {data.gender}\n"
@@ -28,19 +31,27 @@ def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
         f"- Medical Conditions: {', '.join(data.medical_conditions) if data.medical_conditions else 'None'}\n"
         f"- Injuries or Limitations: {', '.join(data.injuries_or_limitations) if data.injuries_or_limitations else 'None'}\n\n"
 
+        f"Important Notes:\n"
+        f"- If the user has **serious injuries** (e.g., broken leg, spinal issues, missing limb), the plan MUST be designed to avoid strain on the affected areas.\n"
+        f"- Use adaptive, low-impact, or seated/rehab exercises as needed.\n"
+        f"- Clearly avoid exercises that can aggravate the injuries or limitations.\n"
+        f"- Ensure proper form and safety is emphasized in all instructions.\n"
+        f"- If needed, rest or recovery days should be included.\n"
+
         f"Output Instructions:\n"
         f"- Output ONLY a valid JSON array (no markdown, no explanation, no comments).\n"
         f"- The array must contain exactly 7 objects, one for each day of the week (Monday to Sunday).\n"
         f"- Each object must contain:\n"
         f"  - 'day': A string for the day name (e.g., 'Monday')\n"
-        f"  - 'focus': A string describing the workout focus (e.g., 'Chest & Triceps')\n"
+        f"  - 'focus': A string describing the workout focus (e.g., 'Upper Body Mobility', 'Recovery')\n"
         f"  - 'exercises': A list of exercises (empty list if it's a rest day)\n"
         f"- Each exercise must include:\n"
-        f"  - 'name': string (e.g., 'Push-ups')\n"
-        f"  - 'sets': integer (e.g., 3)\n"
-        f"  - 'reps': string (IMPORTANT: must be a string like '10-12', '30 seconds', or 'Max'. DO NOT use numbers.)\n"
-        f"  - 'equipment': string (e.g., 'Bodyweight', 'Dumbbells')\n"
-        f"  - 'duration_per_set': optional string (e.g., '60 sec', omit if not applicable)\n\n"
+        f"  - 'name': string (e.g., 'Seated Arm Circles')\n"
+        f"  - 'sets': integer (e.g., 2)\n"
+        f"  - 'reps': string (e.g., '10-12', '30 seconds', or 'Max'. DO NOT use numbers alone.)\n"
+        f"  - 'equipment': string (e.g., 'Chair', 'Resistance Band', 'None')\n"
+        f"  - 'duration_per_set': optional string (e.g., '45 sec')\n"
+        f"  - 'instructions': list of short tips or guidelines (e.g., ['Support your back', 'Do not twist spine'])\n\n"
 
         f"Strictly return ONLY the JSON array, with no markdown or extra text."
     )
@@ -55,6 +66,10 @@ async def create_weekly_workout_plan(
         return api_response(message="Unauthorized: Invalid user ID", status=400)
 
     try:
+        # 1️⃣ Delete any existing workout plans for the user
+        await workout_collection.delete_many({"user_id": user_id})
+
+        # 2️⃣ Generate new plan from Gemini
         raw_response = await generate_gemini_response(build_workout_prompt(payload))
         cleaned_response = re.sub(r"^```(?:json)?\n|\n```$", "", raw_response.strip())
 
@@ -65,6 +80,7 @@ async def create_weekly_workout_plan(
 
         validated_plan = [WorkoutPlanDay(**day) for day in plan_data]
 
+        # 3️⃣ Create new workout plan document
         workout_plan_doc = WorkoutDietPlan(
             user_id=user_id,
             age=payload.age,
@@ -80,6 +96,7 @@ async def create_weekly_workout_plan(
             plan=validated_plan
         )
 
+        # 4️⃣ Save to MongoDB
         result = await workout_collection.insert_one(workout_plan_doc.model_dump(by_alias=True))
         inserted_id = str(result.inserted_id)
 
@@ -92,22 +109,6 @@ async def create_weekly_workout_plan(
     except Exception as e:
         return api_response(message=f"Failed to generate or save workout plan: {str(e)}", status=500)
 
-# 📥 Get single workout plan
-@router.get("/workout/plan/{plan_id}")
-async def get_workout_plan(plan_id: str):
-    if not ObjectId.is_valid(plan_id):
-        return api_response(message="Invalid plan ID", status=400)
-
-    workout_doc = await workout_collection.find_one({"_id": ObjectId(plan_id)})
-    if not workout_doc:
-        return api_response(message="Workout plan not found", status=404)
-
-    workout_doc["_id"] = str(workout_doc["_id"])
-    return api_response(
-        message="Workout plan retrieved successfully",
-        status=200,
-        data=workout_doc
-    )
 
 # 📋 Get all workout plans for current user
 @router.get("/workout/plans/user")
@@ -131,13 +132,104 @@ async def get_user_workout_plans(user_id: str = Depends(get_current_user_id)):
     )
 
 # ❌ Delete a workout plan
-@router.delete("/workout/plan/{plan_id}")
-async def delete_workout_plan(plan_id: str):
-    if not ObjectId.is_valid(plan_id):
-        return api_response(message="Invalid plan ID", status=400)
+@router.delete("/workout/plan/")
+async def delete_workout_plans(user_id: str = Depends(get_current_user_id)):
+    if not ObjectId.is_valid(user_id):
+        return api_response(message="Invalid user ID", status=400)
 
-    delete_result = await workout_collection.delete_one({"_id": ObjectId(plan_id)})
+    delete_result = await workout_collection.delete_many({"user_id": user_id})
+
     if delete_result.deleted_count == 0:
+        return api_response(message="No workout plans found for this user", status=404)
+
+    return api_response(message="All workout plans deleted successfully", status=200)
+
+
+
+
+
+
+@router.post("/workout/complete")
+async def log_workout_day(
+    payload: WorkoutDayLogRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    if not ObjectId.is_valid(user_id) or not ObjectId.is_valid(payload.plan_id):
+        return api_response(message="Invalid user ID or plan ID", status=400)
+
+    # 🔎 Fetch workout plan
+    plan_doc = await workout_collection.find_one({
+        "_id": ObjectId(payload.plan_id),
+        "user_id": user_id
+    })
+
+    if not plan_doc:
         return api_response(message="Workout plan not found", status=404)
 
-    return api_response(message="Workout plan deleted successfully", status=200)
+    # 🗓 Get day name from date (e.g., "Sunday")
+    day_name = payload.date.strftime("%A")
+
+    # 🔍 Find matching day from the plan
+    day_plan = next(
+        (d for d in plan_doc.get("plan", []) if d.get("day", "").lower() == day_name.lower()),
+        None
+    )
+
+    if not day_plan:
+        return api_response(message=f"No workout found for day: {day_name}", status=404)
+    
+    if payload.date > date.today():
+        return api_response(message="Cannot log workout for a future date.", status=400)
+
+    # 🚫 Prevent logging rest day
+    if not day_plan.get("exercises") or day_plan.get("focus", "").lower() == "rest":
+        return api_response(message=f"{day_name} is a rest day. No workout to log.", status=400)
+
+
+    log_timestamp = payload.created_at or datetime.now(timezone.utc)
+
+    # 📆 Check for duplicates using logged_at range
+    start_dt = datetime.combine(payload.date, time.min).replace(tzinfo=timezone.utc)
+    end_dt = start_dt + timedelta(days=1)
+
+    existing_log = await workout_log_collection.find_one({
+        "user_id": ObjectId(user_id),
+        "plan_id": ObjectId(payload.plan_id),
+        "logged_at": {"$gte": start_dt, "$lt": end_dt}
+    })
+
+    if existing_log:
+        return api_response(message=f"Workout for {payload.date} already logged.", status=409)
+
+    # ✅ Map exercises
+    completion_flags = {e.name.lower(): e.completed for e in (payload.exercises or [])}
+    mapped_exercises = []
+    for exercise in day_plan.get("exercises", []):
+        mapped_exercises.append({
+            "name": exercise["name"],
+            "sets": exercise["sets"],
+            "reps": exercise["reps"],
+            "equipment": exercise.get("equipment"),
+            "duration_per_set": exercise.get("duration_per_set"),
+            "completed": completion_flags.get(exercise["name"].lower(), False)
+        })
+
+    # 🧾 Final log document
+    log_doc = {
+        "user_id": ObjectId(user_id),
+        "plan_id": ObjectId(payload.plan_id),
+        "date": payload.date.isoformat(),
+        "status": payload.status,
+        "logged_at": log_timestamp,
+        "exercises": mapped_exercises
+    }
+
+    try:
+        result = await workout_log_collection.insert_one(log_doc)
+        return api_response(
+            message=f"Workout for {payload.date} logged with {len(mapped_exercises)} exercises.",
+            status=201,
+            data={"log_id": str(result.inserted_id)}
+        )
+    except Exception as e:
+        return api_response(message=f"Error logging workout: {str(e)}", status=500)

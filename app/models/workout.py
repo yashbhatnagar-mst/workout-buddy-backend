@@ -1,7 +1,7 @@
 # app/models/workout.py
 from pydantic import BaseModel, Field
 from typing import List
-from datetime import datetime,timezone
+from datetime import datetime,timezone , date
 from app.schemas.workout import WorkoutPlanDay
 
 class WorkoutDietPlan(BaseModel):
@@ -22,6 +22,27 @@ class WorkoutDietPlan(BaseModel):
     description="Timestamp of plan creation"
 )
 
+
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal
+from bson import ObjectId
+from datetime import datetime
+
+class ExerciseLogModel(BaseModel):
+    name: str
+    sets: int
+    reps: str
+    weight: Optional[float]
+    rest_time_sec: Optional[int]
+    rpe: Optional[int]
+
+class WorkoutDayLogModel(BaseModel):
+    user_id: ObjectId
+    plan_id: ObjectId
+    date: date
+    status: Literal["completed", "skipped"]
+    logged_at: datetime
+    exercises: Optional[List[ExerciseLogModel]] = None
 
     class Config:
         validate_by_name = True

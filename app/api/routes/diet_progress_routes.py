@@ -9,7 +9,7 @@ from bson import ObjectId
 from datetime import datetime
 
 
-router = APIRouter(prefix="/api/progress/ai", tags=["AI Diet Progress"])
+router = APIRouter(prefix="/api/progress/ai")
 
 
 @router.get("/generate")
