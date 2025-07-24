@@ -39,3 +39,10 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+def create_reset_token(email: str) -> str:
+    payload = {
+        "sub": email,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
