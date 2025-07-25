@@ -16,6 +16,7 @@ from app.api.routes.delete_meal_log import router as delete_meal_log_router
 from app.api.routes.update_meal_log import router as update_meal_log_router
 from app.api.routes.forgot_password import router as forgot_password_route
 from app.config.settings import settings
+from app.api.routes.workout_progress import router as workout_progress_router
 
 # FastAPI instance
 app = FastAPI(title=settings.APP_NAME)
@@ -44,6 +45,7 @@ app.include_router(update_meal_log_router)
 app.include_router(api_router, prefix="/api")
 app.include_router(oauth.router, prefix="/auth", tags=["OAuth"])
 app.include_router(diet_progress_router, prefix="/api/progress", tags=["Diet Progress"])
+app.include_router(workout_progress_router, prefix="/api/progress", tags=["Workout Progress"])
 app.include_router(api_key_router, prefix="/api-keys", tags=["API Keys"])
 app.include_router(forgot_password_route, tags=["Forgot Password"])
 
