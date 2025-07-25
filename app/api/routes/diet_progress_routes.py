@@ -9,7 +9,7 @@ from bson import ObjectId
 from datetime import datetime
 
 
-router = APIRouter(prefix="/api/progress/ai")
+router = APIRouter()
 
 
 @router.get("/generate")
@@ -60,6 +60,7 @@ async def generate_ai_progress(
       {{
         "date": "YYYY-MM-DD",
         "total_calories": number,
+
         "missed_meals": number,
         "adherence_score": number
       }},
@@ -73,6 +74,7 @@ async def generate_ai_progress(
         ...
       ]
     }}
+    please generate a detailed progress report based on the above diet log in expected json format.
     """
 
     ai_result = await generate_gemini_response(prompt)
