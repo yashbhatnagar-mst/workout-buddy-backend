@@ -44,17 +44,36 @@ async def generate_ai_progress(
         return api_response(message="No meal logs found in this date range.", status=404)
 
     # Prepare a detailed prompt for Gemini
-    prompt = f"""You are a professional dietitian. Analyze this user's diet log between {start_date} and {end_date} and generate a progress report. Show calories estimation, missing meals analysis, and adherence insights.
-    
-Here is the data:
-{logs}
+    prompt = f"""
+    You are a professional dietitian. Analyze the user's diet log between {start_date} and {end_date} and generate a structured progress report in **pure JSON only**.
 
-Provide insights in bullet points with clarity for visualization in graphs or charts, including:
-- Total calories trends
-- Missed meals count per day
-- Days with best adherence
-- Overall feedback
-"""
+    ❗ Important Instructions:
+    - Do NOT include any markdown formatting (e.g., no ```json or ```).
+    - Do NOT include any text or explanation outside the JSON.
+    - Return only valid, clean JSON output.
+
+    Here is the user's diet log:
+    {logs}
+
+    Expected JSON structure:
+    [
+      {{
+        "date": "YYYY-MM-DD",
+        "total_calories": number,
+        "missed_meals": number,
+        "adherence_score": number
+      }},
+      ...
+    ],
+    "summary": {{
+      "best_adherence_days": ["YYYY-MM-DD", ...],
+      "feedback": [
+        "• Feedback point 1",
+        "• Feedback point 2",
+        ...
+      ]
+    }}
+    """
 
     ai_result = await generate_gemini_response(prompt)
 
