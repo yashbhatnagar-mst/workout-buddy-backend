@@ -4,7 +4,7 @@ from authlib.integrations.starlette_client import OAuth
 from app.config.settings import settings
 from app.db.mongodb import db
 from app.core.auth import create_jwt_token
-from app.models.user import User
+from app.models.auth import User
 
 
 router = APIRouter()
@@ -38,15 +38,16 @@ async def google_auth_callback(request: Request):
         new_user = User(
             email=email,
             password_hash="",  # No password for OAuth users
-            oauth_provider="google"
+            oauth_provider="google",
+            is_verified=True
         )
         insert_result = await users_collection.insert_one(new_user.model_dump(by_alias=True))
         user_id = str(insert_result.inserted_id)
     else:
         user_id = str(user["_id"])
-
+ 
     # ✅ FIXED: Create JWT using expected parameters
     jwt_token = create_jwt_token(user_id=user_id, email=email)
 
-    redirect_url = f"http://localhost:8001/login/callback?token={jwt_token}&user_id={user_id}"
+    redirect_url = f"http://localhost:8001/login/callback?token={jwt_token}"
     return RedirectResponse(url=redirect_url)
