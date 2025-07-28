@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.schemas.meal_log_schema import MealLogRequest
+from app.schemas.meal_log import MealLogRequest
 from app.db.mongodb import db
 from bson import ObjectId
 from datetime import datetime
