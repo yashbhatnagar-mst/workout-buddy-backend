@@ -12,6 +12,8 @@ class DietFormRequest(BaseModel):
     other_allergy: str
     preferred_workout_style: str
     preferred_training_days_per_week: int
+    number_of_days: int = 7  # Add this line
+
 
 
 class DietPlanResponse(BaseModel):

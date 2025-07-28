@@ -34,7 +34,7 @@ async def forgot_password(request: ForgotPasswordRequest):
 
     if user:
         token = create_reset_token(user["email"])
-        reset_link = f"http://localhost:8001/reset-password?token={token}"
+        reset_link = f"http://localhost:8001/password?token={token}"
         send_reset_email(to_email=user["email"], reset_link=reset_link)
 
         # Store reset timestamp (optional)
