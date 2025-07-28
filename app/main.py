@@ -18,6 +18,7 @@ from app.api.routes.forgot_password import router as forgot_password_route
 from app.config.settings import settings
 from app.api.routes.workout_progress import router as workout_progress_router
 
+
 # FastAPI instance
 app = FastAPI(title=settings.APP_NAME)
 
