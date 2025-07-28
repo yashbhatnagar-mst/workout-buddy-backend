@@ -70,13 +70,22 @@ async def create_weekly_workout_plan(
         await workout_collection.delete_many({"user_id": user_id})
 
         # 2️⃣ Generate new plan from Gemini
+# 2️⃣ Generate new plan from Gemini
         raw_response = await generate_gemini_response(build_workout_prompt(payload))
-        cleaned_response = re.sub(r"^(?:json)?\n|\n$", "", raw_response.strip())
+        cleaned_response = re.sub(r"^```(?:json)?\n|\n```$", "", raw_response.strip())
+
+        # 🔍 Check for empty or invalid response
+        if not cleaned_response:
+            return api_response(message="Empty response from Gemini model", status=502)
 
         try:
             plan_data = json.loads(cleaned_response)
         except json.JSONDecodeError as e:
-            return api_response(message=f"Invalid plan format: {e}", status=400)
+            return api_response(
+                message="Invalid JSON from Gemini response",
+                status=400,
+                data={"raw_response": raw_response}
+            )
 
         validated_plan = [WorkoutPlanDay(**day) for day in plan_data]
 

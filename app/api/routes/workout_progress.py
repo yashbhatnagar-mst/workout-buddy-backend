@@ -7,7 +7,7 @@ from bson import ObjectId
 from datetime import datetime
 import re
 import json
-from app.schemas.Workout_Progress_Schema import WorkoutProgressAPIResponse
+from app.schemas.workout_progress import WorkoutProgressAPIResponse
 
 router = APIRouter()
 users_profile = db["user_profiles"]
