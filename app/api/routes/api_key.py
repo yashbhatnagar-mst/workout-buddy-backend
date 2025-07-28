@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 from uuid import uuid4
 from datetime import datetime, timezone, timedelta
-from app.schemas.api_key_schema import ApiKeyCreate, ApiKeyOut
+from app.schemas.api_key import ApiKeyCreate, ApiKeyOut
 from app.core.security import encrypt_api_key, decrypt_api_key
 from app.db.mongodb import db
 from app.utils.api_response import api_response
