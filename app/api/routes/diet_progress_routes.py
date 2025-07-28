@@ -10,10 +10,10 @@ from datetime import datetime
 import re
 import json
 
-router = APIRouter(prefix="/api/progress/ai")
+router = APIRouter()
 users_profile = db["user_profiles"]
 
-@router.get("/generate")
+@router.get("/Diet/generate")
 async def generate_ai_progress(
     user_id: str = Depends(get_current_user_id),
     start_date: str = Query(..., description="YYYY-MM-DD"),
