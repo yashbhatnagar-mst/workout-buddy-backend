@@ -148,88 +148,82 @@ async def delete_workout_plans(user_id: str = Depends(get_current_user_id)):
 
 
 
+from fastapi import APIRouter, Depends, Query
+from app.core.auth import get_current_user_id
+from app.utils.api_response import api_response
+from app.utils.gemini import generate_gemini_response
+from app.db.mongodb import db
+from bson import ObjectId
+from datetime import datetime
+from typing import Optional
 
-@router.post("/workout/complete")
-async def log_workout_day(
-    payload: WorkoutDayLogRequest,
+router = APIRouter(prefix="/api/progress/ai/workout")
+
+@router.get("/generate")
+async def generate_ai_workout_progress(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
     user_id: str = Depends(get_current_user_id)
 ):
-    if not ObjectId.is_valid(user_id) or not ObjectId.is_valid(payload.plan_id):
-        return api_response(message="Invalid user ID or plan ID", status=400)
-
-    # 🔎 Fetch workout plan
-    plan_doc = await workout_collection.find_one({
-        "_id": ObjectId(payload.plan_id),
-        "user_id": user_id
-    })
-
-    if not plan_doc:
-        return api_response(message="Workout plan not found", status=404)
-
-    # 🗓 Get day name from date (e.g., "Sunday")
-    day_name = payload.date.strftime("%A")
-
-    # 🔍 Find matching day from the plan
-    day_plan = next(
-        (d for d in plan_doc.get("plan", []) if d.get("day", "").lower() == day_name.lower()),
-        None
-    )
-
-    if not day_plan:
-        return api_response(message=f"No workout found for day: {day_name}", status=404)
-    
-    if payload.date > date.today():
-        return api_response(message="Cannot log workout for a future date.", status=400)
-
-    # 🚫 Prevent logging rest day
-    if not day_plan.get("exercises") or day_plan.get("focus", "").lower() == "rest":
-        return api_response(message=f"{day_name} is a rest day. No workout to log.", status=400)
-
-
-    log_timestamp = payload.created_at or datetime.now(timezone.utc)
-
-    # 📆 Check for duplicates using logged_at range
-    start_dt = datetime.combine(payload.date, time.min).replace(tzinfo=timezone.utc)
-    end_dt = start_dt + timedelta(days=1)
-
-    existing_log = await workout_log_collection.find_one({
-        "user_id": ObjectId(user_id),
-        "plan_id": ObjectId(payload.plan_id),
-        "logged_at": {"$gte": start_dt, "$lt": end_dt}
-    })
-
-    if existing_log:
-        return api_response(message=f"Workout for {payload.date} already logged.", status=409)
-
-    # ✅ Map exercises
-    completion_flags = {e.name.lower(): e.completed for e in (payload.exercises or [])}
-    mapped_exercises = []
-    for exercise in day_plan.get("exercises", []):
-        mapped_exercises.append({
-            "name": exercise["name"],
-            "sets": exercise["sets"],
-            "reps": exercise["reps"],
-            "equipment": exercise.get("equipment"),
-            "duration_per_set": exercise.get("duration_per_set"),
-            "completed": completion_flags.get(exercise["name"].lower(), False)
-        })
-
-    # 🧾 Final log document
-    log_doc = {
-        "user_id": ObjectId(user_id),
-        "plan_id": ObjectId(payload.plan_id),
-        "date": payload.date.isoformat(),
-        "status": payload.status,
-        "logged_at": log_timestamp,
-        "exercises": mapped_exercises
-    }
-
     try:
-        result = await workout_log_collection.insert_one(log_doc)
-        return api_response(
-            message=f"Workout for {payload.date} logged with {len(mapped_exercises)} exercises.",
-            status=201,
-            data={"log_id": str(result.inserted_id)}
-        )
-    except Exception as e:
-        return api_response(message=f"Error logging workout: {str(e)}", status=500)
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        return api_response(message="Invalid date format. Use YYYY-MM-DD.", status=400)
+
+    if not ObjectId.is_valid(user_id):
+        return api_response(message="Invalid user ID", status=400)
+
+    user_obj_id = ObjectId(user_id)
+
+    # ✅ Ensure collection name matches logging route
+    logs_cursor = db.workout_completions.find({
+        "user_id": user_obj_id,
+        "logged_at": {"$gte": start, "$lt": end}
+    })
+
+    logs = await logs_cursor.to_list(length=None)
+
+    if not logs:
+        return api_response(message="No workout logs found for this date range.", status=404)
+
+    # Fetch user profile
+    profile = await db.user_profiles.find_one({"user_id": user_obj_id})
+    if not profile:
+        return api_response(message="User profile not found.", status=404)
+
+    # Prompt preparation for Gemini
+    prompt = f"""
+You are a fitness expert AI.
+The following is the workout log of a user between {start_date} and {end_date}.
+The user profile is:
+- Name: {profile.get("name", "Unknown")}
+- Age: {profile.get("age")}
+- Gender: {profile.get("gender")}
+- Height: {profile.get("height_cm")} cm
+- Weight: {profile.get("weight_kg")} kg
+- Activity Level: {profile.get("activity_level")}
+- Goal: {profile.get("goal")}
+
+Workout Logs:
+{logs}
+
+Generate a detailed AI progress report in paragraph format including:
+- Performance overview
+- Missed vs completed days
+- Muscle groups focused
+- Suggestions for next week
+- Motivation note
+"""
+
+    ai_response = await generate_gemini_response(prompt)
+
+    return api_response(
+        message="AI-generated workout progress report.",
+        status=200,
+        data={
+            "start_date": start_date,
+            "end_date": end_date,
+            "summary": ai_response
+        }
+    )
