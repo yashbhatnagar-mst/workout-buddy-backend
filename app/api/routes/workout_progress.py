@@ -1,4 +1,3 @@
-# app/api/routes/ai_progress.py
 from fastapi import APIRouter, Depends, Query
 from app.core.auth import get_current_user_id
 from app.utils.api_response import api_response
@@ -8,12 +7,15 @@ from bson import ObjectId
 from datetime import datetime
 import re
 import json
+from app.schemas.Workout_Progress_Schema import WorkoutProgressAPIResponse
 
 router = APIRouter()
 users_profile = db["user_profiles"]
-workout_logs = db["workout_logs"]
+workout_logs = db["workout_completions"]
+workout_plans = db["workout_plans"]
 
-@router.get("/Workout/generate")
+
+@router.get("/Workout/generate", response_model=WorkoutProgressAPIResponse)
 async def generate_ai_workout_progress(
     user_id: str = Depends(get_current_user_id),
     start_date: str = Query(..., description="YYYY-MM-DD"),
@@ -54,19 +56,29 @@ async def generate_ai_workout_progress(
     if not logs:
         return api_response(message="No workout logs found in this date range.", status=404)
 
-    profile = await users_profile.find_one({"user_id": ObjectId(user_id)})
+    profile = await users_profile.find_one({"user_id": user_id})
     if not profile:
         return api_response(message="User profile not found.", status=404)
+    
 
+    latest_plan = await workout_plans.find_one(
+    {"user_id": ObjectId(user_id)},
+    sort=[("created_at", -1)]
+)
+
+    weight_to_use = latest_plan.get("weight_kg") if latest_plan and latest_plan.get("weight_kg") else profile.get("weight_kg", 0)
+    
+
+    # === AI Prompt ===
     prompt = f"""
-You are a certified fitness coach AI. Analyze the user's workout performance between {start_date} and {end_date} based on their logs and profile.
+You are a certified fitness coach AI. Based on the user's profile and workout logs between {start_date} and {end_date}, return a minimal progress summary in structured JSON format for tracking and visualization.
 
 == User Profile ==
 Name: {profile.get("name", "N/A")}
 Age: {profile.get("age", "N/A")}
 Gender: {profile.get("gender", "N/A")}
 Height: {profile.get("height_cm", "N/A")} cm
-Weight: {profile.get("weight_kg", "N/A")} kg
+Weight: {weight_to_use} kg
 Activity Level: {profile.get("activity_level", "N/A")}
 Goal: {profile.get("goal", "N/A")}
 Workout Days/Week: {profile.get("workout_days_per_week", "N/A")}
@@ -76,66 +88,49 @@ Workout Duration: {profile.get("workout_duration", "N/A")}
 {logs}
 
 == Output Instructions ==
-- Output ONLY a valid JSON object (NO markdown, NO explanation, NO code blocks, NO comments).
-- The response must follow this exact structure:
+Return only a valid JSON object in the following exact format:
 
 {{
-  "workoutProgressReport": {{
-    "userProfile": {{
-      "weight": "string (e.g., '70.0 kg')",
-      "period": "string (e.g., '2025-07-01 to 2025-07-28')"
-    }},
-    "overviewSummary": ["string", "..."],
-    "consistencyAnalysis": {{
-      "completedDays": int,
-      "totalDays": int,
-      "consistencyPercentage": float,
-      "summary": "string"
-    }},
-    "intensityAndVolumeTrends": {{
-      "averageRPE": float,
-      "totalSets": int,
-      "totalReps": int,
-      "weightLiftedSummary": "string"
-    }},
-    "muscleGroupFocus": {{
-      "muscleGroupDistribution": {{
-        "chest": int,
-        "legs": int,
-        "back": int,
-        "arms": int,
-        "shoulders": int,
-        "core": int,
-        "other": int
-      }},
-      "summary": "string"
-    }},
-    "insightsAndRecommendations": {{
-      "trainingFeedback": [
-        {{
-          "area": "string (e.g., 'Positives' or 'Needs Improvement')",
-          "points": ["string", "..."]
-        }}
-      ],
-      "suggestions": [
-        {{
-          "title": "string",
-          "tips": ["string", "..."]
-        }}
-      ]
-    }},
-    "conclusion": "string"
-  }}
+  "start_date": "YYYY-MM-DD",
+  "end_date": "YYYY-MM-DD",
+  "completed_days": int,
+  "total_days": int,
+  "consistency": float,
+  "average_rpe": float,
+  "total_sets": int,
+  "total_reps": int,
+  "calories_burned": int,
+  "muscle_distribution": {{
+    "chest": int,
+    "legs": int,
+    "back": int,
+    "arms": int,
+    "shoulders": int,
+    "core": int,
+    "other": int
+  }},
+  "weight": float,
+  "tips": [
+    {{
+      "title": "string",
+      "tips": ["string", "..."]
+    }}
+  ]
 }}
 
 == Notes ==
-- Do NOT include any markdown or extra wrapping.
-- Return a clean JSON response with no missing fields.
+- All values must be valid types (no strings for numbers).
+- Estimate "calories_burned" based on intensity, duration, and profile.
+- The "tips" field should provide actionable guidance for the user.
 """
 
     ai_result = await generate_gemini_response(prompt)
+
     cleaned = re.sub(r'^```(?:json)?\n|\n```$', '', ai_result.strip())
-    data = json.loads(cleaned)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        return api_response(message="Failed to parse AI response.", status=500)
 
     await db["workout_progress_logs"].insert_one({
         "user_id": ObjectId(user_id),
