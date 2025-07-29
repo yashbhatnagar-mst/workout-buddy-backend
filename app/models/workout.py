@@ -1,8 +1,9 @@
 # app/models/workout.py
 from pydantic import BaseModel, Field
-from typing import List
 from datetime import datetime,timezone , date
 from app.schemas.workout import WorkoutPlanDay
+from typing import List, Optional, Literal
+from bson import ObjectId
 
 class WorkoutDietPlan(BaseModel):
     user_id: str = Field(..., description="ID of the user this plan belongs to")
@@ -23,10 +24,7 @@ class WorkoutDietPlan(BaseModel):
 )
 
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
-from bson import ObjectId
-from datetime import datetime
+
 
 class ExerciseLogModel(BaseModel):
     name: str
