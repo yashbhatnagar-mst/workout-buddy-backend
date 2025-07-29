@@ -17,6 +17,7 @@ from app.api.routes.delete_meal_log import router as delete_meal_log_router
 from app.api.routes.update_meal_log import router as update_meal_log_router
 from app.api.routes.workout_progress import router as workout_progress_router
 
+
 # Main API v1 router
 api_router = APIRouter()
 

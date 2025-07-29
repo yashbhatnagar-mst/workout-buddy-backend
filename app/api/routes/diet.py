@@ -139,12 +139,12 @@ Only return JSON for the following days: {', '.join(selected_days)}.
 
 
 
-@router.get("/diet-plan/{plan_id}")
-async def get_saved_diet_plan(plan_id: str):
-    if not ObjectId.is_valid(plan_id):
+@router.get("/diet-plan/")
+async def get_saved_diet_plan(user_id: str = Depends(get_current_user_id)):
+    if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid plan_id")
 
-    plan = await db["diet_plans"].find_one({"_id": ObjectId(plan_id)})
+    plan = await db["diet_plans"].find_one({"user_id": ObjectId(user_id)})
 
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
