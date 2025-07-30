@@ -67,7 +67,7 @@ async def generate_ai_workout_progress(
         sort=[("created_at", -1)]
     )
 
-    weight_to_use = latest_plan.get("weight_kg") if latest_plan and latest_plan.get("weight_kg") else profile.get("weight_kg", 0)
+
 
     prompt = f"""
 You are a certified fitness coach AI. Based on the user's profile and workout logs between {start_date} and {end_date}, return a minimal progress summary in structured JSON format for tracking and visualization.
