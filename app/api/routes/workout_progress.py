@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from app.core.auth import get_current_user_id
 from app.utils.api_response import api_response
-from app.utils.gemini import generate_gemini_response
 from app.db.mongodb import db
 from bson import ObjectId
 from datetime import datetime
 import re
 import json
 from app.schemas.workout_progress import WorkoutProgressAPIResponse
+from app.utils.groq import get_groq_response
+from starlette.concurrency import run_in_threadpool
 
 router = APIRouter()
 users_profile = db["user_profiles"]
@@ -59,15 +60,15 @@ async def generate_ai_workout_progress(
     profile = await users_profile.find_one({"user_id": user_id})
     if not profile:
         return api_response(message="User profile not found.", status=404)
-    
 
     latest_plan = await workout_plans.find_one(
-    {"user_id": ObjectId(user_id)},
-    sort=[("created_at", -1)]
-)
+        {"user_id": ObjectId(user_id)},
+        sort=[("created_at", -1)]
+    )
 
     weight_to_use = latest_plan.get("weight_kg") if latest_plan and latest_plan.get("weight_kg") else profile.get("weight_kg", 0)
-    
+
+    print(profile.get("weight","N/A"))
 
     # === AI Prompt ===
     prompt = f"""
@@ -77,8 +78,8 @@ You are a certified fitness coach AI. Based on the user's profile and workout lo
 Name: {profile.get("name", "N/A")}
 Age: {profile.get("age", "N/A")}
 Gender: {profile.get("gender", "N/A")}
-Height: {profile.get("height_cm", "N/A")} cm
-Weight: {weight_to_use} kg
+Height: {profile.get("height", "N/A")} cm
+Weight: {profile.get("weight","N/A")} kg
 Activity Level: {profile.get("activity_level", "N/A")}
 Goal: {profile.get("goal", "N/A")}
 Workout Days/Week: {profile.get("workout_days_per_week", "N/A")}
@@ -124,14 +125,25 @@ Return only a valid JSON object in the following exact format:
 - The "tips" field should provide actionable guidance for the user.
 """
 
-    ai_result = await generate_gemini_response(prompt)
-
-    cleaned = re.sub(r'^```(?:json)?\n|\n```$', '', ai_result.strip())
+    # Call Groq (sync function) safely in async route
     try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError:
-        return api_response(message="Failed to parse AI response.", status=500)
+        ai_result = await run_in_threadpool(get_groq_response, prompt)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI request failed: {str(e)}")
 
+    # Extract valid JSON from Groq response
+    def extract_json_from_response(text: str):
+        match = re.search(r"{.*}", text, re.DOTALL)
+        if not match:
+            raise ValueError("No JSON object found in AI output.")
+        return json.loads(match.group())
+
+    try:
+        data = extract_json_from_response(ai_result)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse AI response: {str(e)}")
+
+    # Save to DB
     await db["workout_progress_logs"].insert_one({
         "user_id": ObjectId(user_id),
         "start_date": start_date,

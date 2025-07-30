@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from app.core.auth import get_current_user_id
 from app.utils.api_response import api_response
-from app.utils.gemini import generate_gemini_response
+from app.utils.groq import get_groq_response
 from app.db.mongodb import db
 from bson import ObjectId
 from datetime import datetime
@@ -137,7 +137,7 @@ async def generate_ai_progress(
     """
 
 
-    ai_result = await generate_gemini_response(prompt)
+    ai_result = get_groq_response(prompt)
             
     cleaned = re.sub(r'^```(?:json)?\n|\n```$', '', ai_result.strip())
 
