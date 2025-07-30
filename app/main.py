@@ -27,16 +27,6 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET_KEY)
 app.include_router(api_router, prefix="/api")
 app.include_router(progress_chart_router, prefix="/api")
 app.include_router(workout_charts_router, prefix="/api")
-        
-# Startup
-@app.on_event("startup")
-async def on_startup():
-    await configure_gemini_model()
-    try:
-        await db.command("ping")
-        print("✅ Connected to MongoDB Atlas")
-    except Exception as e:
-        print(f"❌ Failed to connect to MongoDB Atlas: {e}")
 
 # Health check
 @app.get("/")
