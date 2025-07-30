@@ -157,10 +157,6 @@ async def delete_workout_plans(user_id: str = Depends(get_current_user_id)):
     return api_response(message="All workout plans deleted successfully", status=200)
 
 
-
-
-
-
 @router.post("/workout/complete")
 async def log_workout_day(
     payload: WorkoutDayLogRequest,
