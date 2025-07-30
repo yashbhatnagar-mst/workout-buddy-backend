@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status, Form, HTTPException, Request
 from jose import jwt, JWTError
-from datetime import datetime
+from datetime import datetime , timezone
 from app.utils.api_response import api_response
 from app.utils.email import send_reset_email
 from app.core.security import hash_password
@@ -26,7 +26,7 @@ async def forgot_password(request: ForgotPasswordRequest):
     # Rate limiting: check last request timestamp (optional)
     if user and user.get("last_password_reset_at"):
         last_reset = user["last_password_reset_at"]
-        if (datetime.utcnow() - last_reset).total_seconds() < 60:  # 60 sec limit
+        if (datetime.now(timezone.utc) - last_reset).total_seconds() < 60:  # 60 sec limit
             return api_response(
                 message="Please wait before requesting another reset.",
                 status=status.HTTP_429_TOO_MANY_REQUESTS
@@ -34,7 +34,7 @@ async def forgot_password(request: ForgotPasswordRequest):
 
     if user:
         token = create_reset_token(user["email"])
-        reset_link = f"http://localhost:8001/reset-password?token={token}"
+        reset_link = f"http://localhost:8001/password?token={token}"
         send_reset_email(to_email=user["email"], reset_link=reset_link)
 
         # Store reset timestamp (optional)
@@ -55,9 +55,10 @@ async def forgot_password(request: ForgotPasswordRequest):
 @router.post("/reset-password")
 async def reset_password(token: str = Form(...), new_password: str = Form(...)):
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         email = payload.get("sub")
         if not email:
+
             raise HTTPException(status_code=400, detail="Invalid token payload")
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
