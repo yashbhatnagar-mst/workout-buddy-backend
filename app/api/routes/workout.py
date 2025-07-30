@@ -10,6 +10,8 @@ from app.schemas.workout import WorkoutDietPlanRequest, WorkoutPlanDay , Workout
 from app.models.workout import WorkoutDietPlan
 from datetime import datetime, timezone , time , timedelta ,date
 
+from app.utils.groq import get_groq_response
+
 
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
 workout_collection = db["workout_plans"]
@@ -18,7 +20,7 @@ workout_log_collection = db["workout_completions"]
 # 🔧 Prompt builder
 def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
     return (
-        f"You are a certified physiotherapist and fitness trainer specializing in injury recovery and adaptive workouts. Generate a safe, effective, and detailed 7-day personalized workout plan (prefer rest on Saturday and Sunday if days are less then 7) in valid JSON format "
+        f"You are a certified physiotherapist and fitness trainer specializing in injury recovery and adaptive workouts. Generate a safe, effective, and detailed 7-day personalized workout plan in valid JSON format "
         f"for a user with the following profile:\n"
         f"- Age: {data.age}\n"
         f"- Gender: {data.gender}\n"
@@ -32,25 +34,26 @@ def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
         f"- Injuries or Limitations: {', '.join(data.injuries_or_limitations) if data.injuries_or_limitations else 'None'}\n\n"
 
         f"Important Notes:\n"
-        f"- If the user has **serious injuries** (e.g., broken leg, spinal issues, missing limb), the plan MUST be designed to avoid strain on the affected areas.\n"
+        f"- If the user has **serious injuries** (e.g., broken leg, spinal issues, missing limb), the plan MUST avoid strain on those areas.\n"
         f"- Use adaptive, low-impact, or seated/rehab exercises as needed.\n"
-        f"- Clearly avoid exercises that can aggravate the injuries or limitations.\n"
-        f"- Ensure proper form and safety is emphasized in all instructions.\n"
-        f"- If needed, rest or recovery days should be included.\n"
+        f"- Do NOT assign exercises that can aggravate the injuries or limitations.\n"
+        f"- Emphasize safety and proper form in all instructions.\n"
+        f"- ⚠️ If the user has **less than 7 workout days per week**, assign REST days for the remaining days. Always prioritize assigning rest to **Sunday first, then Saturday, then other weekdays**.\n"
+        f"- ⚠️ On rest days, DO NOT include any exercises – the 'exercises' list should be empty.\n\n"
 
         f"Output Instructions:\n"
         f"- Output ONLY a valid JSON array (no markdown, no explanation, no comments).\n"
         f"- The array must contain exactly 7 objects, one for each day of the week (Monday to Sunday).\n"
         f"- Each object must contain:\n"
         f"  - 'day': A string for the day name (e.g., 'Monday')\n"
-        f"  - 'focus': A string describing the workout focus (e.g., 'Upper Body Mobility', 'Recovery')\n"
+        f"  - 'focus': A string describing the workout focus (e.g., 'Upper Body Mobility', 'Recovery', or 'Rest')\n"
         f"  - 'exercises': A list of exercises (empty list if it's a rest day)\n"
         f"- Each exercise must include:\n"
         f"  - 'name': string (e.g., 'Seated Arm Circles')\n"
         f"  - 'sets': integer (e.g., 2)\n"
         f"  - 'reps': string (e.g., '10-12', '30 seconds', or 'Max'. DO NOT use numbers alone.)\n"
         f"  - 'equipment': string (e.g., 'Chair', 'Resistance Band', 'None')\n"
-        f"  - 'duration_per_set': optional string (e.g., '45 sec')\n"
+        f"  - 'duration_per_set': string (e.g., '45 sec')\n"
         f"  - 'instructions': list of short tips or guidelines (e.g., ['Support your back', 'Do not twist spine'])\n\n"
 
         f"Strictly return ONLY the JSON array, with no markdown or extra text."
@@ -71,7 +74,7 @@ async def create_weekly_workout_plan(
 
         # 2️⃣ Generate new plan from Gemini
 # 2️⃣ Generate new plan from Gemini
-        raw_response = await generate_gemini_response(build_workout_prompt(payload))
+        raw_response = get_groq_response(build_workout_prompt(payload))
         cleaned_response = re.sub(r"^```(?:json)?\n|\n```$", "", raw_response.strip())
 
         # 🔍 Check for empty or invalid response

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     MAILTRAP_USERNAME: str = Field(..., env="MAILTRAP_USERNAME")
     MAILTRAP_PASSWORD: str = Field(..., env="MAILTRAP_PASSWORD")
     FROM_EMAIL: str = Field(..., env="FROM_EMAIL")
+    GROQ_API_KEY: str = Field(..., env="GROQ_API_KEY")
 
     class Config:
         env_file = ".env"
