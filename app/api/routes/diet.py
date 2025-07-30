@@ -2,12 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.core.auth import get_current_user_id
 from app.schemas.diet_plan import DietFormRequest
 from app.db.mongodb import db
-from app.utils.gemini import generate_gemini_response
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 import re
 import json
 from app.utils.api_response import api_response
+from app.utils.groq import get_groq_response
 
 router = APIRouter(prefix="/diet", tags=["Diet"])
 
@@ -98,7 +98,7 @@ User Profile:
 Only return JSON for the following days: {', '.join(selected_days)}.
 """
 
-    ai_response = await generate_gemini_response(prompt)
+    ai_response = get_groq_response(prompt)
 
     try:
         diet_plan = extract_json_from_text(ai_response)

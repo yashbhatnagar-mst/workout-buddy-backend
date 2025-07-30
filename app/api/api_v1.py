@@ -16,6 +16,8 @@ from app.api.routes.api_key import router as api_key_router
 from app.api.routes.delete_meal_log import router as delete_meal_log_router
 from app.api.routes.update_meal_log import router as update_meal_log_router
 from app.api.routes.workout_progress import router as workout_progress_router
+from app.api.routes.progress_chart import router as progress_chart_router
+from app.api.routes.workout_charts import router as workout_charts_router
 
 
 # Main API v1 router
@@ -35,3 +37,5 @@ api_router.include_router(update_meal_log_router, tags=["Meal Log"])
 api_router.include_router(diet_progress_router, prefix="/progress", tags=["Diet Progress"])
 api_router.include_router(workout_progress_router, prefix="/progress", tags=["Workout Progress"])
 api_router.include_router(api_key_router, prefix="/api-keys", tags=["API Keys"])
+api_router.include_router(progress_chart_router,  tags=["Progress Charts"])
+api_router.include_router(workout_charts_router,  tags=["Progress Charts"])
