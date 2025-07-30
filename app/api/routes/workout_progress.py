@@ -3,7 +3,7 @@ from app.core.auth import get_current_user_id
 from app.utils.api_response import api_response
 from app.db.mongodb import db
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime , timezone
 import re
 import json
 from app.schemas.workout_progress import WorkoutProgressAPIResponse
@@ -14,6 +14,7 @@ router = APIRouter()
 users_profile = db["user_profiles"]
 workout_logs = db["workout_completions"]
 workout_plans = db["workout_plans"]
+progress_collection = db["workout_progress_logs"]
 
 
 @router.get("/Workout/generate", response_model=WorkoutProgressAPIResponse)
@@ -68,9 +69,6 @@ async def generate_ai_workout_progress(
 
     weight_to_use = latest_plan.get("weight_kg") if latest_plan and latest_plan.get("weight_kg") else profile.get("weight_kg", 0)
 
-    print(profile.get("weight","N/A"))
-
-    # === AI Prompt ===
     prompt = f"""
 You are a certified fitness coach AI. Based on the user's profile and workout logs between {start_date} and {end_date}, return a minimal progress summary in structured JSON format for tracking and visualization.
 
@@ -79,7 +77,7 @@ Name: {profile.get("name", "N/A")}
 Age: {profile.get("age", "N/A")}
 Gender: {profile.get("gender", "N/A")}
 Height: {profile.get("height", "N/A")} cm
-Weight: {profile.get("weight","N/A")} kg
+Weight: {profile.get("weight", "N/A")} kg
 Activity Level: {profile.get("activity_level", "N/A")}
 Goal: {profile.get("goal", "N/A")}
 Workout Days/Week: {profile.get("workout_days_per_week", "N/A")}
@@ -125,13 +123,11 @@ Return only a valid JSON object in the following exact format:
 - The "tips" field should provide actionable guidance for the user.
 """
 
-    # Call Groq (sync function) safely in async route
     try:
         ai_result = await run_in_threadpool(get_groq_response, prompt)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI request failed: {str(e)}")
 
-    # Extract valid JSON from Groq response
     def extract_json_from_response(text: str):
         match = re.search(r"{.*}", text, re.DOTALL)
         if not match:
@@ -143,15 +139,19 @@ Return only a valid JSON object in the following exact format:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse AI response: {str(e)}")
 
-    # Save to DB
-    await db["workout_progress_logs"].insert_one({
+
+    # Save new progress
+    await progress_collection.replace_one(
+    {"user_id": ObjectId(user_id)},
+    {
         "user_id": ObjectId(user_id),
         "start_date": start_date,
         "end_date": end_date,
         "generated_summary": data,
-        "generated_at": datetime.utcnow()
-    })
-
+        "generated_at": datetime.now(timezone.utc)
+    },
+    upsert=True
+)
     return api_response(
         message="AI-generated workout progress report.",
         status=200,
