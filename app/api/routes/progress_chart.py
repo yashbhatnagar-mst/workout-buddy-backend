@@ -32,8 +32,6 @@ async def get_diet_chart_data(user_id: str = Depends(get_current_user_id)):
                     "total": entry["calories"].get("total", 0),
                 })
 
-
-
     if not all_entries:
         return api_response(message="No daily calorie logs found.", status=404)
 
@@ -44,36 +42,31 @@ async def get_diet_chart_data(user_id: str = Depends(get_current_user_id)):
     # Get weight from latest userProfile
     last_weight = "N/A"
     for log in reversed(logs):
-        profile = log.get("dietProgressReport", {}).get("userProfile", {})
+        profile = log.get("generated_summary", {}).get("dietProgressReport", {}).get("userProfile", {})
         if profile.get("weight"):
             last_weight = profile["weight"]
             break
 
+    # ✅ Get adherence and consistency from latest available summary
+    adherence_percentage = 0.0
+    consistency_percentage = 0.0
+    for log in reversed(logs):
+        report = log.get("generated_summary", {}).get("dietProgressReport", {})
+        adherence_data = report.get("adherenceAnalysis", {})
+        consistency_data = report.get("mealLoggingConsistency", {})
+
+        if adherence_data.get("adherencePercentage") is not None and consistency_data.get("consistencyPercentage") is not None:
+            adherence_percentage = adherence_data.get("adherencePercentage", 0.0)
+            consistency_percentage = consistency_data.get("consistencyPercentage", 0.0)
+            break
+
+    # Daily chart data (only total calories per day)
     daily_chart_data = []
-    consistency_count = 0
-    adherence_scores = []
-
     for entry in sorted_logs:
-        date = entry.get("date")
-        breakfast = entry.get("breakfast", 0)
-        lunch = entry.get("lunch", 0)
-        dinner = entry.get("dinner", 0)
-        total = entry.get("total", 0)
-
-        # Adherence: assume 100 if all meals are logged
-        adherence = 100 if all(m > 0 for m in [breakfast, lunch, dinner]) else 0
-
-        if adherence > 0:
-            consistency_count += 1
-            adherence_scores.append(adherence)
-
         daily_chart_data.append({
-            "date": date,
-            "total": total
+            "date": entry.get("date"),
+            "total": entry.get("total", 0)
         })
-
-    consistency_percentage = round((consistency_count / len(sorted_logs)) * 100, 2)
-    adherence_percentage = round(sum(adherence_scores) / len(adherence_scores), 2) if adherence_scores else 0.0
 
     response_data = {
         "period": f"{sorted_logs[0]['date']} to {sorted_logs[-1]['date']}",
