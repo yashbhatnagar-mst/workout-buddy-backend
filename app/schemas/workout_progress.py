@@ -14,6 +14,10 @@ class MuscleDistribution(BaseModel):
     core: int
     other: int
 
+class DailyBurnout(BaseModel):
+    date: str  # or use date if you want strict format validation
+    calorie_burnout: int
+
 class WorkoutProgressSummary(BaseModel):
     start_date: str
     end_date: str
@@ -24,6 +28,7 @@ class WorkoutProgressSummary(BaseModel):
     total_sets: int
     total_reps: int
     calories_burned: int
+    dailyLog: List[DailyBurnout]
     muscle_distribution: MuscleDistribution
     weight: float
     tips: List[Tip]

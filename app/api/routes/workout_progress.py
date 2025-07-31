@@ -3,7 +3,7 @@ from app.core.auth import get_current_user_id
 from app.utils.api_response import api_response
 from app.db.mongodb import db
 from bson import ObjectId
-from datetime import datetime , timezone
+from datetime import datetime, timezone
 import re
 import json
 from app.schemas.workout_progress import WorkoutProgressAPIResponse
@@ -67,8 +67,6 @@ async def generate_ai_workout_progress(
         sort=[("created_at", -1)]
     )
 
-
-
     prompt = f"""
 You are a certified fitness coach AI. Based on the user's profile and workout logs between {start_date} and {end_date}, return a minimal progress summary in structured JSON format for tracking and visualization.
 
@@ -99,6 +97,12 @@ Return only a valid JSON object in the following exact format:
   "total_sets": int,
   "total_reps": int,
   "calories_burned": int,
+  "dailyLog": [
+    {{
+      "date": "YYYY-MM-DD",
+      "calorie_burnout": int
+    }}
+  ],
   "muscle_distribution": {{
     "chest": int,
     "legs": int,
@@ -119,8 +123,9 @@ Return only a valid JSON object in the following exact format:
 
 == Notes ==
 - All values must be valid types (no strings for numbers).
-- Estimate "calories_burned" based on intensity, duration, and profile.
-- The "tips" field should provide actionable guidance for the user.
+- Estimate "calories_burned" based on intensity, duration, and user profile.
+- "dailyLog" should reflect estimated burnout per day (even if rest day).
+- Provide thoughtful, personalized tips.
 """
 
     try:
@@ -139,19 +144,19 @@ Return only a valid JSON object in the following exact format:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse AI response: {str(e)}")
 
-
-    # Save new progress
+    # Save generated progress summary
     await progress_collection.replace_one(
-    {"user_id": ObjectId(user_id)},
-    {
-        "user_id": ObjectId(user_id),
-        "start_date": start_date,
-        "end_date": end_date,
-        "generated_summary": data,
-        "generated_at": datetime.now(timezone.utc)
-    },
-    upsert=True
-)
+        {"user_id": ObjectId(user_id)},
+        {
+            "user_id": ObjectId(user_id),
+            "start_date": start_date,
+            "end_date": end_date,
+            "generated_summary": data,
+            "generated_at": datetime.now(timezone.utc)
+        },
+        upsert=True
+    )
+
     return api_response(
         message="AI-generated workout progress report.",
         status=200,
