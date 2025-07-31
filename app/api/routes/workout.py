@@ -36,9 +36,11 @@ def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
         f"Important Notes:\n"
         f"- If the user has **serious injuries** (e.g., broken leg, spinal issues, missing limb), the plan MUST avoid strain on those areas.\n"
         f"- Use adaptive, low-impact, or seated/rehab exercises as needed.\n"
+        f"- ✅ Assign exercises **strictly for all days mentioned** — do **not reduce** the number of days or add rest days on your own.\n"
+
         f"- Do NOT assign exercises that can aggravate the injuries or limitations.\n"
         f"- Emphasize safety and proper form in all instructions.\n"
-        f"- ⚠️ If the user has **less than 7 workout days per week**, assign REST days for the remaining days. Always prioritize assigning rest to **Sunday first, then Saturday, then other weekdays**.\n"
+        f"- ⚠️ If the user has **less than 6 workout days per week**, assign REST days for the remaining days. Always prioritize assigning rest to **Sunday first, then Saturday, then other weekdays**.\n"
         f"- ⚠️ On rest days, DO NOT include any exercises – the 'exercises' list should be empty.\n\n"
 
         f"Output Instructions:\n"
@@ -119,7 +121,7 @@ async def create_weekly_workout_plan(
         # 4️⃣ Save to MongoDB
         await profiles_collection.update_one(
             {"user_id": user_id},
-            {"$set": user_profile_docs.model_dump()}
+            {"$set": user_profile_docs.model_dump(exclude_unset=True)}
         )
         result = await workout_collection.insert_one(workout_plan_doc.model_dump(by_alias=True))
         inserted_id = str(result.inserted_id)
