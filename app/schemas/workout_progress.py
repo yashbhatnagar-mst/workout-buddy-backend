@@ -29,6 +29,7 @@ class WorkoutProgressSummary(BaseModel):
     total_reps: int
     calories_burned: int
     dailyLog: List[DailyBurnout]
+    sum_of_all_calorie_burnout: int
     muscle_distribution: MuscleDistribution
     weight: float
     tips: List[Tip]

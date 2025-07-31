@@ -97,6 +97,7 @@ Return only a valid JSON object in the following exact format:
   "total_sets": int,
   "total_reps": int,
   "calories_burned": int,
+  "sum_of_all_calorie_burnout": int,
   "dailyLog": [
     {{
       "date": "YYYY-MM-DD",
