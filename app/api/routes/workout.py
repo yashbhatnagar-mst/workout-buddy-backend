@@ -119,7 +119,7 @@ async def create_weekly_workout_plan(
         # 4️⃣ Save to MongoDB
         await profiles_collection.update_one(
             {"user_id": user_id},
-            {"$set": user_profile_docs.model_dump()}
+            {"$set": user_profile_docs.model_dump(exclude_unset=True)}
         )
         result = await workout_collection.insert_one(workout_plan_doc.model_dump(by_alias=True))
         inserted_id = str(result.inserted_id)
