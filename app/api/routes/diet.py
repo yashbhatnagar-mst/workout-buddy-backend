@@ -9,6 +9,7 @@ import json
 from app.utils.api_response import api_response
 from app.utils.groq import get_groq_response
 
+
 router = APIRouter(prefix="/diet", tags=["Diet"])
 
 def extract_json_from_text(text: str):
@@ -119,20 +120,23 @@ Only return JSON for the following days: {', '.join(selected_days)}.
         for day, date in zip(selected_days, week_dates)
     }
 
-    result = await db["diet_plans"].insert_one({
-        "user_id": ObjectId(user_id),
-        "user_profile": request.dict(),
-        "week_start_date": week_dates[0],
-        "week_end_date": week_dates[-1],
-        "ai_generated_plan": dated_plan,
-        "created_at": datetime.now(timezone.utc)
-    })
+    await db["diet_plans"].replace_one(
+        {"user_id": ObjectId(user_id)},
+        {
+            "user_id": ObjectId(user_id),
+            "user_profile": request.dict(),
+            "week_start_date": week_dates[0],
+            "week_end_date": week_dates[-1],
+            "ai_generated_plan": dated_plan,
+            "created_at": datetime.now(timezone.utc)
+        },
+        upsert=True
+    )
 
     return api_response(
         message="AI Diet Plan generated successfully",
         status=201,
         data={
-            "diet_plan_id": str(result.inserted_id),
             "ai_generated_diet_plan": dated_plan
         }
     )
