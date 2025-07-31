@@ -13,4 +13,9 @@ async def check_mongo_connection():
         print("❌ MongoDB connection failed:", e)
 
 # Run the check
-asyncio.get_event_loop().create_task(check_mongo_connection())
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+loop.create_task(check_mongo_connection())

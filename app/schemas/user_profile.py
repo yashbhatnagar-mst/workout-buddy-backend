@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Literal, Optional
 from datetime import datetime
 from bson import ObjectId
+from pydantic import ConfigDict
 
 
 class UserProfileCreate(BaseModel):
@@ -40,6 +41,8 @@ class UserProfileOut(BaseModel):
     goal: str = Field(..., description="Fitness goal of the user")
     created_at: datetime = Field(..., description="Profile creation timestamp")
 
-    class Config:
-        validate_by_name = True
-        json_encoders = {ObjectId: str}
+    model_config = ConfigDict(
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
+        ser_json_typed={ObjectId: str}
+    )
