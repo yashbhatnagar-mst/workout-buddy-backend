@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime, timezone ,date
 from typing import Optional
 from bson import ObjectId
-
+from pydantic import ConfigDict
 
 class UserProfile(BaseModel):
     id: Optional[ObjectId] = Field(default_factory=ObjectId, alias="_id")
@@ -16,10 +16,11 @@ class UserProfile(BaseModel):
     goal: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).date().isoformat())
 
-    class Config:
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
-        from_attributes = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        ser_json_typed={ObjectId: str},
+        from_attributes=True
+    )
 
 
 
