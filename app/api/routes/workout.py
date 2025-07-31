@@ -4,11 +4,11 @@ import json
 import re
 from app.core.auth import get_current_user_id
 from app.db.mongodb import db
-from app.utils.gemini import generate_gemini_response
 from app.utils.api_response import api_response
 from app.schemas.workout import WorkoutDietPlanRequest, WorkoutPlanDay , WorkoutDayLogRequest
 from app.models.workout import WorkoutDietPlan
 from datetime import datetime, timezone , time , timedelta ,date
+from app.models.user_profile import UserProfileUpdate
 
 from app.utils.groq import get_groq_response
 
@@ -16,7 +16,7 @@ from app.utils.groq import get_groq_response
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
 workout_collection = db["workout_plans"]
 workout_log_collection = db["workout_completions"]
-
+profiles_collection = db["user_profiles"]
 # 🔧 Prompt builder
 def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
     return (
@@ -52,7 +52,7 @@ def build_workout_prompt(data: WorkoutDietPlanRequest) -> str:
         f"  - 'name': string (e.g., 'Seated Arm Circles')\n"
         f"  - 'sets': integer (e.g., 2)\n"
         f"  - 'reps': string (e.g., '10-12', '30 seconds', or 'Max'. DO NOT use numbers alone.)\n"
-        f"  - 'equipment': string (e.g., 'Chair', 'Resistance Band', 'None')\n"
+        f"  - 'equipment': string (e.g., 'Chair', 'Resistance Band' )\n"
         f"  - 'duration_per_set': string (e.g., '45 sec')\n"
         f"  - 'instructions': list of short tips or guidelines (e.g., ['Support your back', 'Do not twist spine'])\n\n"
 
@@ -72,20 +72,19 @@ async def create_weekly_workout_plan(
         # 1️⃣ Delete any existing workout plans for the user
         await workout_collection.delete_many({"user_id": user_id})
 
-        # 2️⃣ Generate new plan from Gemini
-# 2️⃣ Generate new plan from Gemini
+
         raw_response = get_groq_response(build_workout_prompt(payload))
         cleaned_response = re.sub(r"^```(?:json)?\n|\n```$", "", raw_response.strip())
 
         # 🔍 Check for empty or invalid response
         if not cleaned_response:
-            return api_response(message="Empty response from Gemini model", status=502)
+            return api_response(message="Empty response from Groq model", status=502)
 
         try:
             plan_data = json.loads(cleaned_response)
         except json.JSONDecodeError as e:
             return api_response(
-                message="Invalid JSON from Gemini response",
+                message="Invalid JSON from Groq response",
                 status=400,
                 data={"raw_response": raw_response}
             )
@@ -108,7 +107,20 @@ async def create_weekly_workout_plan(
             plan=validated_plan
         )
 
+        user_profile_docs = UserProfileUpdate(
+            user_id=user_id,
+            age=payload.age,
+            gender=payload.gender,
+            height=payload.height_cm,
+            weight=payload.weight_kg,
+            activity_level=payload.activity_level,
+            goal=payload.goal
+        )
         # 4️⃣ Save to MongoDB
+        await profiles_collection.update_one(
+            {"user_id": user_id},
+            {"$set": user_profile_docs.model_dump()}
+        )
         result = await workout_collection.insert_one(workout_plan_doc.model_dump(by_alias=True))
         inserted_id = str(result.inserted_id)
 

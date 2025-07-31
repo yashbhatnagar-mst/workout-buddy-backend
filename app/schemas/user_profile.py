@@ -16,7 +16,7 @@ class UserProfileCreate(BaseModel):
     goal: Literal[
         "lose_weight", "gain_muscle", "maintain_fitness"
     ] = Field(..., description="Fitness goal of the user")
-
+ 
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(None, description="Full name of the user")
