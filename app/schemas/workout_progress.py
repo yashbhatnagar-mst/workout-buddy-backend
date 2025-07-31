@@ -27,7 +27,6 @@ class WorkoutProgressSummary(BaseModel):
     average_rpe: float
     total_sets: int
     total_reps: int
-    calories_burned: int
     dailyLog: List[DailyBurnout]
     sum_of_all_calorie_burnout: int
     muscle_distribution: MuscleDistribution
