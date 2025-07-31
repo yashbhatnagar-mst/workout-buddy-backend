@@ -47,10 +47,12 @@ async def get_workout_progress_summary(user_id: str = Depends(get_current_user_i
                 total_sets=summary_data.get("total_sets", 0),
                 total_reps=summary_data.get("total_reps", 0),
                 calories_burned=summary_data.get("calories_burned", 0),
+                dailyLog=daily_burnout_logs,
+                sum_of_all_calorie_burnout=summary_data.get("sum_of_all_calorie_burnout", 0),
                 muscle_distribution=MuscleDistribution(**summary_data.get("muscle_distribution", {})),
                 weight=summary_data.get("weight", 0),
-                tips=[Tip(**tip) for tip in summary_data.get("tips", [])],
-                dailyLog=daily_burnout_logs
+                tips=[Tip(**tip) for tip in summary_data.get("tips", [])]
+                
             )
         )
 

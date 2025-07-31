@@ -30,11 +30,13 @@ class WorkoutProgressSummary(BaseModel):
     average_rpe: float
     total_sets: int
     total_reps: int
-    calories_burned: int
+    sum_of_all_calorie_burnout: int
+    
+    dailyLog: List[DailyBurnout]  
     muscle_distribution: MuscleDistribution
     weight: float
     tips: List[Tip]
-    dailyLog: List[DailyBurnout]  # ✅ Newly added
+    
 
 
 class WorkoutProgressResponse(BaseModel):

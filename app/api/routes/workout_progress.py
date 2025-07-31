@@ -48,7 +48,6 @@ async def generate_ai_workout_progress(
             }
             for ex in log.get("exercises", [])
         ]
-
         logs.append({
             "date": log["date"],
             "status": log.get("status", ""),
@@ -92,11 +91,10 @@ Return only a valid JSON object in the following exact format:
   "end_date": "YYYY-MM-DD",
   "completed_days": int,
   "total_days": int,
-  "consistency": float,
+  "consistency": float *100 "%",
   "average_rpe": float,
   "total_sets": int,
   "total_reps": int,
-  "calories_burned": int,
   "sum_of_all_calorie_burnout": int,
   "dailyLog": [
     {{
@@ -145,9 +143,25 @@ Return only a valid JSON object in the following exact format:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse AI response: {str(e)}")
 
-    # Save generated progress summary
+    # ✅ Deduplicate dailyLog by date and recalculate sum
+    if "dailyLog" in data and isinstance(data["dailyLog"], list):
+        seen_dates = set()
+        unique_log = []
+        for entry in data["dailyLog"]:
+            entry_date = entry.get("date")
+            if entry_date and entry_date not in seen_dates:
+                seen_dates.add(entry_date)
+                unique_log.append(entry)
+        data["dailyLog"] = unique_log
+        data["sum_of_all_calorie_burnout"] = sum(entry.get("calorie_burnout", 0) for entry in unique_log)
+
+    # ✅ Save to DB (replacing existing progress for that user and date range)
     await progress_collection.replace_one(
-        {"user_id": ObjectId(user_id)},
+        {
+            "user_id": ObjectId(user_id),
+            "start_date": start_date,
+            "end_date": end_date
+        },
         {
             "user_id": ObjectId(user_id),
             "start_date": start_date,
