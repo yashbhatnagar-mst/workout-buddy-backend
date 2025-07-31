@@ -1,14 +1,12 @@
-# app/api/routes/ai_progress.py
-
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from app.core.auth import get_current_user_id
 from app.utils.api_response import api_response
-from app.utils.gemini import generate_gemini_response
+from app.utils.groq import get_groq_response
 from app.db.mongodb import db
 from bson import ObjectId
 from datetime import datetime
-import re
 import json
+from starlette.concurrency import run_in_threadpool
 
 router = APIRouter()
 users_profile = db["user_profiles"]
@@ -19,14 +17,18 @@ async def generate_ai_progress(
     start_date: str = Query(..., description="YYYY-MM-DD"),
     end_date: str = Query(..., description="YYYY-MM-DD")
 ):
+    print(f"Generating AI diet progress for user {user_id} from {start_date} to {end_date}")
+
+    # Validate dates
     try:
         start = datetime.fromisoformat(start_date)
         end = datetime.fromisoformat(end_date)
         if start > end:
             raise ValueError
     except ValueError:
-        return api_response(message="Invalid date range.", status=400)
+        raise HTTPException(status_code=400, detail="Invalid date range.")
 
+    # Fetch meal logs
     logs_cursor = db["meal_logs"].find({
         "user_id": ObjectId(user_id),
         "date": {"$gte": start_date, "$lte": end_date}
@@ -42,107 +44,124 @@ async def generate_ai_progress(
         })
 
     if not logs:
-        return api_response(message="No meal logs found in this date range.", status=404)
+        raise HTTPException(status_code=404, detail="No meal logs found in this date range.")
 
+    # Fetch user profile
     profile = await users_profile.find_one({"user_id": user_id})
     if not profile or "weight" not in profile:
-        return api_response(message="User profile not found or missing weight info.", status=404)
+        raise HTTPException(status_code=404, detail="User profile not found or missing weight info.")
 
     weight = profile["weight"]
 
+    # Prompt for Groq AI
     prompt = f"""
-    You are a certified AI dietitian. Analyze the user's diet between {start_date} and {end_date} based on their meal logs and weight. The user's weight is {weight} kg.
+You are a certified AI dietitian.
 
-    == Meal Logs ==
-    {logs}
+Your task is to analyze the user's diet between {start_date} and {end_date} based on their meal logs and weight. The user's weight is {weight} kg.
 
-    == Output Instructions ==
-    - Output ONLY a valid JSON object (NO markdown, NO explanation, NO code blocks, NO comments).
-    - The response must match this exact structure:
+== USER DATA ==
+Meal Logs:
+{logs}
 
-    {{
-    "dietProgressReport": {{
-        "userProfile": {{
-        "weight": "string (e.g., '58.0 kg')",
-        "period": "string (e.g., '2025-07-01 to 2025-07-15')"
-        }},
-        "overviewSummary": ["string", "..."],
-        "estimatedCalorieBreakdown": {{
-        "notes": "string",
+== INSTRUCTIONS ==
+You must respond with ONE valid JSON object only.
+
+⚠️ Strict Rules:
+- DO NOT include markdown (like triple backticks), code blocks, or any explanatory text.
+- DO NOT omit or rename any required fields.
+- DO NOT add extra fields.
+- DO NOT write any introduction or summary outside the JSON.
+
+== REQUIRED JSON FORMAT ==
+{{
+"dietProgressReport": {{
+    "userProfile": {{
+        "weight": "{weight} kg",
+        "period": "{start_date} to {end_date}"
+    }},
+    "overviewSummary": ["..."],
+    "estimatedCalorieBreakdown": {{
+        "notes": "...",
         "dailyAverages": {{
-            "breakfast": int,
-            "lunch": int,
-            "dinner": int,
-            "totalDaily": int
+            "breakfast": 0,
+            "lunch": 0,
+            "dinner": 0,
+            "totalDaily": 0
         }},
         "dailyLog": [
             {{
-            "date": "YYYY-MM-DD",
-            "calories": {{
-                "breakfast": int,
-                "lunch": int,
-                "dinner": int,
-                "total": int
-            }}
+                "date": "YYYY-MM-DD",
+                "calories": {{
+                    "breakfast": 0,
+                    "lunch": 0,
+                    "dinner": 0,
+                    "total": 0
+                }}
             }}
         ],
         "visualizationSuggestion": {{
-            "title": "string",
+            "title": "...",
             "charts": [
-            {{
-                "type": "string (e.g., 'Bar Chart')",
-                "description": "string"
-            }}
+                {{
+                    "type": "...",
+                    "description": "..."
+                }}
             ]
         }}
-        }},
-        "mealLoggingConsistency": {{
-        "consistencyPercentage": float,
-        "summary": "string",
-        "missedMeals": "string"
-        }},
-        "adherenceAnalysis": {{
-        "adherencePercentage": float,
-        "summary": "string",
-        "bestAdherenceDays": "string",
-        "consumptionPattern": "string"
-        }},
-        "insightsAndRecommendations": {{
+    }},
+    "mealLoggingConsistency": {{
+        "consistencyPercentage": 0.0,
+        "summary": "...",
+        "missedMeals": "..."
+    }},
+    "adherenceAnalysis": {{
+        "adherencePercentage": 0.0,
+        "summary": "...",
+        "bestAdherenceDays": "...",
+        "consumptionPattern": "..."
+    }},
+    "insightsAndRecommendations": {{
         "nutritionalFeedback": [
             {{
-            "area": "string (e.g., 'Positives' or 'Areas for Improvement')",
-            "points": ["string", "..."]
+                "area": "...",
+                "points": ["..."]
             }}
         ],
         "recommendations": [
             {{
-            "title": "string",
-            "suggestions": ["string", "..."]
+                "title": "...",
+                "suggestions": ["..."]
             }},
             {{
-            "title": "string",
-            "example": "string"
+                "title": "...",
+                "example": "..."
             }}
         ]
-        }},
-        "conclusion": "string"
-    }}
-    }}
+    }},
+    "conclusion": "..."
+}}
+}}
 
-    == Important Notes ==
-    - Do NOT include markdown (```) or any wrapper.
-    - Do NOT include any introductory or explanatory text.
-    - Do NOT omit any required fields.
-    - Return STRICTLY one JSON object matching the schema above.
-    """
+ONLY return this JSON object. NOTHING else.
+"""
 
+    try:
+        ai_result = await run_in_threadpool(get_groq_response, prompt)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI request failed: {str(e)}")
 
-    ai_result = await generate_gemini_response(prompt)
-            
-    cleaned = re.sub(r'^```(?:json)?\n|\n```$', '', ai_result.strip())
+    def extract_json_from_response(text: str):
+        start = text.find('{')
+        end = text.rfind('}')
+        if start == -1 or end == -1 or start > end:
+            raise ValueError("No valid JSON object found in AI output.")
+        json_str = text[start:end+1]
+        return json.loads(json_str)
 
-    # Load the full response JSON
-    data = json.loads(cleaned)
+    try:
+        data = extract_json_from_response(ai_result)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse AI response: {str(e)}")
 
     await db["diet_progress_logs"].insert_one({
         "user_id": ObjectId(user_id),

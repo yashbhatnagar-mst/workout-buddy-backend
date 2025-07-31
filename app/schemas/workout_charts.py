@@ -1,9 +1,11 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Optional
+
 
 class Tip(BaseModel):
     title: str
     tips: List[str]
+
 
 class MuscleDistribution(BaseModel):
     chest: int
@@ -14,9 +16,6 @@ class MuscleDistribution(BaseModel):
     core: int
     other: int
 
-class DailyBurnout(BaseModel):
-    date: str  # or use date if you want strict format validation
-    calorie_burnout: int
 
 class WorkoutProgressSummary(BaseModel):
     start_date: str
@@ -28,18 +27,19 @@ class WorkoutProgressSummary(BaseModel):
     total_sets: int
     total_reps: int
     calories_burned: int
-    dailyLog: List[DailyBurnout]
     muscle_distribution: MuscleDistribution
     weight: float
     tips: List[Tip]
+
 
 class WorkoutProgressResponse(BaseModel):
     start_date: str
     end_date: str
     summary: WorkoutProgressSummary
 
+
 class WorkoutProgressAPIResponse(BaseModel):
     message: str
     status: int
     success: bool
-    data: WorkoutProgressResponse
+    data: Optional[WorkoutProgressResponse]

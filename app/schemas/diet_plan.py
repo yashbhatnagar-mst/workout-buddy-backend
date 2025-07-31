@@ -12,6 +12,8 @@ class DietFormRequest(BaseModel):
     other_allergy: str
     preferred_workout_style: str
     preferred_training_days_per_week: int
+    
+
 
 
 class DietPlanResponse(BaseModel):

@@ -1,17 +1,16 @@
-from fastapi import APIRouter, HTTPException , Depends
+from fastapi import APIRouter, HTTPException, Depends
 from app.core.auth import get_current_user_id
 from app.schemas.diet_plan import DietFormRequest
 from app.db.mongodb import db
-from app.utils.gemini import generate_gemini_response
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 import re
 import json
-from datetime import timezone
 from app.utils.api_response import api_response
+from app.utils.groq import get_groq_response
+
 
 router = APIRouter(prefix="/diet", tags=["Diet"])
-
 
 def extract_json_from_text(text: str):
     clean_text = re.sub(r"```json\s*|```", "", text).strip()
@@ -20,31 +19,27 @@ def extract_json_from_text(text: str):
         return json.loads(json_match.group(0))
     raise ValueError("No valid JSON found in response")
 
-
-def get_next_seven_days_dates():
+def get_next_dates(n: int):
     today = datetime.now(timezone.utc).date()
-    return [(today + timedelta(days=i)).isoformat() for i in range(7)]
-
-
-def api_response(message: str, status: int, data=None):
-    return {
-        "message": message,
-        "status": status,
-        "success": status < 400,
-        "data": data
-    }
-
+    return [(today + timedelta(days=i)).isoformat() for i in range(n)]
 
 @router.post("/generate-diet-plan/")
-async def generate_diet_plan(request: DietFormRequest , user_id: str = Depends(get_current_user_id) ):
+async def generate_diet_plan(request: DietFormRequest, user_id: str = Depends(get_current_user_id)):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user_id")
+
+    number_of_days = request.preferred_training_days_per_week or 7
+    days_of_week = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    selected_days = days_of_week[:min(number_of_days, 7)]
 
     prompt = f"""
 You are a certified dietitian and fitness expert.
 
-Return a 7-day **diet plan in strict JSON format.**
+Return a {len(selected_days)}-day **diet plan in strict JSON format.**
 Each day must include **breakfast, lunch, and dinner.**
+Return only the following days: {', '.join(selected_days)}.
+
+Strictly follow this JSON format:
 {{
     "monday": {{
         "breakfast": "...",
@@ -101,10 +96,10 @@ User Profile:
 - Preferred Workout Style: {request.preferred_workout_style}
 - Preferred Training Days per Week: {request.preferred_training_days_per_week}
 
-Output must strictly be JSON for all 7 days.
+Only return JSON for the following days: {', '.join(selected_days)}.
 """
 
-    ai_response = await generate_gemini_response(prompt)
+    ai_response = get_groq_response(prompt)
 
     try:
         diet_plan = extract_json_from_text(ai_response)
@@ -115,42 +110,45 @@ Output must strictly be JSON for all 7 days.
             data={"error": str(e), "raw_response": ai_response}
         )
 
-    week_dates = get_next_seven_days_dates()
-    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    week_dates = get_next_dates(len(selected_days))
 
     dated_plan = {
         day: {
             "date": date,
             "meals": diet_plan.get(day, {})
         }
-        for day, date in zip(days, week_dates)
+        for day, date in zip(selected_days, week_dates)
     }
 
-    result = await db["diet_plans"].insert_one({
-        "user_id": ObjectId(user_id),
-        "user_profile": request.dict(),
-        "week_start_date": week_dates[0],
-        "week_end_date": week_dates[-1],
-        "ai_generated_plan": dated_plan,
-        "created_at": datetime.now(timezone.utc)
-    })
+    await db["diet_plans"].replace_one(
+        {"user_id": ObjectId(user_id)},
+        {
+            "user_id": ObjectId(user_id),
+            "user_profile": request.dict(),
+            "week_start_date": week_dates[0],
+            "week_end_date": week_dates[-1],
+            "ai_generated_plan": dated_plan,
+            "created_at": datetime.now(timezone.utc)
+        },
+        upsert=True
+    )
 
     return api_response(
         message="AI Diet Plan generated successfully",
         status=201,
         data={
-            "diet_plan_id": str(result.inserted_id),
             "ai_generated_diet_plan": dated_plan
         }
     )
 
 
-@router.get("/diet-plan/{plan_id}")
-async def get_saved_diet_plan(plan_id: str):
-    if not ObjectId.is_valid(plan_id):
+
+@router.get("/diet-plan/")
+async def get_saved_diet_plan(user_id: str = Depends(get_current_user_id)):
+    if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid plan_id")
 
-    plan = await db["diet_plans"].find_one({"_id": ObjectId(plan_id)})
+    plan = await db["diet_plans"].find_one({"user_id": ObjectId(user_id)})
 
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
