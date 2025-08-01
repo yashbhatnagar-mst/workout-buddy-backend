@@ -8,6 +8,7 @@ from app.api.routes import (
     workout,
     forgot_password,
     diet,
+    chat
 )
 from app.api.routes.diet_progress_routes import router as diet_progress_router
 from app.api.routes.delete_diet_plan_router import router as delete_diet_plan_router
@@ -19,7 +20,6 @@ from app.api.routes.workout_progress import router as workout_progress_router
 from app.api.routes.progress_chart import router as progress_chart_router
 from app.api.routes.workout_charts import router as workout_charts_router
 
-
 # Main API v1 router
 api_router = APIRouter()
 
@@ -28,6 +28,7 @@ api_router.include_router(auth.router, tags=["Auth"])
 api_router.include_router(oauth.router, tags=["OAuth"])
 api_router.include_router(forgot_password.router, tags=["Forgot Password"])
 api_router.include_router(users.router, tags=["Users"])
+api_router.include_router(chat.router, tags=["Chatbot"])
 api_router.include_router(workout.router, tags=["Workout"])
 api_router.include_router(diet.router, tags=["Diet"])
 api_router.include_router(delete_diet_plan_router, tags=["Diet"])

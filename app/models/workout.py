@@ -4,6 +4,7 @@ from datetime import datetime,timezone , date
 from app.schemas.workout import WorkoutPlanDay
 from typing import List, Optional, Literal
 from bson import ObjectId
+from pydantic import ConfigDict
 
 class WorkoutDietPlan(BaseModel):
     user_id: str = Field(..., description="ID of the user this plan belongs to")
@@ -42,9 +43,8 @@ class WorkoutDayLogModel(BaseModel):
     logged_at: datetime
     exercises: Optional[List[ExerciseLogModel]] = None
 
-    class Config:
-        validate_by_name = True
-        arbitrary_types_allowed = True # Required for ObjectId
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
-        }
+    model_config = ConfigDict(
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
+        ser_json_typed={datetime: lambda dt: dt.isoformat()}
+    )

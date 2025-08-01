@@ -6,6 +6,10 @@ class Tip(BaseModel):
     title: str
     tips: List[str]
 
+class DailyBurnout(BaseModel):
+    date: str
+    calorie_burnout: int
+
 
 class MuscleDistribution(BaseModel):
     chest: int
@@ -26,10 +30,13 @@ class WorkoutProgressSummary(BaseModel):
     average_rpe: float
     total_sets: int
     total_reps: int
-    calories_burned: int
+    sum_of_all_calorie_burnout: int
+    
+    dailyLog: List[DailyBurnout]  
     muscle_distribution: MuscleDistribution
     weight: float
     tips: List[Tip]
+    
 
 
 class WorkoutProgressResponse(BaseModel):
