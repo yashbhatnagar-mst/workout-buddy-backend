@@ -49,5 +49,5 @@ async def google_auth_callback(request: Request):
     # ✅ FIXED: Create JWT using expected parameters
     jwt_token = create_jwt_token(user_id=user_id, email=email)
 
-    redirect_url = f"http://localhost:8001/login/callback?token={jwt_token}"
+    redirect_url = f"https://workoutbuddy-frontend-r4f7.onrender.com/login/callback?token={jwt_token}"
     return RedirectResponse(url=redirect_url)
