@@ -64,7 +64,7 @@ async def get_workout_progress_summary(user_id: str = Depends(get_current_user_i
 
     except Exception as e:
         return api_response(
-            message=f"Error retrieving workout progress summary: {str(e)}",
+            message=f"First log Workout Data for 15 days : {str(e)}",
             status=500,
             data=None
         )
